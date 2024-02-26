@@ -1,0 +1,34 @@
+env_params:
+  n_pursuers: 3
+  max_cycles: 30
+COACH_params:
+  stochastic: true
+  FIXED_STEPS_PER_COM:
+    checkin_frequency: 10
+    allow_agent_break: False
+  ACTION_PADDING: 0
+  MIN_NEXT_ACTION_TIME: 1
+  MAX_NEXT_ACTION_TIME: 10
+  seed: 453413
+  Agents:
+    pursuer_0:
+      class_name: "SB_PPOPoliciesActor"
+      params:
+        max_action_len: 10
+        policy_paths:
+          dense:
+          explore: 
+    pursuer_1:
+      class_name: "SB_PPOPoliciesActor"
+      params:
+        max_action_len: 10
+        policy_paths:
+          dense:
+          explore: 
+    pursuer_2:
+      class_name: "SB_PPOPoliciesActor"
+      params:
+        max_action_len: 10
+        policy_paths:
+          dense:
+          explore: 

@@ -1,0 +1,24 @@
+interfaces:
+  Default: # Name of Interface
+    interface_class: DefaultInterface
+    models: 
+      Default:
+        class_name: DefaultActor
+
+  Waypointer: # Name of Interface
+    interface_class: WaypointInterface
+
+    roles: [player_0] # If this is not supplied, assumed all roles
+    models: 
+      PPOWaypointer:
+        class_name: SB_PPOWaypointActor
+        params:
+          policy_path: waypointer/MAInspect_20240213-193621/model.zip
+
+directors:
+  PPO_Director:
+    class_name: SB3_PPO_Director
+    path: director/MAInspect_20240206-211327.zip
+    roles:
+      player_0:
+        classes: [PPOWaypointer]

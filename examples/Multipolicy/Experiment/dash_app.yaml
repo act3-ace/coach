@@ -1,0 +1,64 @@
+interfaces:
+  Default: # Name of Interface
+    interface_class: DefaultInterface
+    models: 
+      Default:
+        class_name: DefaultActor
+
+  Random: # Name of Interface
+    interface_class: RandomActionInterface
+    models: 
+      Random:
+        class_name: RandomActor
+
+  Dense_v_Sparce: # Name of Interface
+    interface_class: SBPolicyInterface
+    iterface_parameters: 
+      n_policies: 2
+      max_action_len: 10
+
+    roles: [pursuer_0, pursuer_1, pursuer_2] # If this is not supplied, assumed all roles
+    models: 
+      Dense_v_Sparse_v1:
+        class_name: SB_PPOPoliciesActor
+        params:
+          policy_paths: 
+            dense: dense/waterworld_v4_20240213-185458.zip
+            explore: explore/waterworld_v4_20240213-185504.zip
+          max_action_len: 10
+      
+      Dense_v_Sparse_v2:
+        class_name: SB_PPOPoliciesActor
+        params: 
+          policy_paths: 
+            dense: dense/waterworld_v4_20240213-185458.zip
+            explore: explore/waterworld_v4_20240213-185504.zip
+          max_action_len: 10
+
+  Tall_v_Short:
+    interface_class: SBPolicyInterface
+    iterface_parameters: 
+      n_policies: 2
+      max_action_len: 10
+
+    models:
+      Tall_v_Short:
+        class_name: SB_PPOPoliciesActor
+        params:
+          policy_paths: 
+            dense: dense/waterworld_v4_20240213-185458.zip
+            explore: explore/waterworld_v4_20240213-185504.zip
+          max_action_len: 10
+    roles: [pursuer_0, pursuer_1, pursuer_2] # If this is not supplied, assumed all roles
+
+directors:
+  PPO_Director:
+    class_name: SB3_PPO_Director
+    path: director/waterworld_v4_20240213-190312.zip
+    roles:
+      pursuer_0:
+        classes: [Dense_v_Sparse_v1, Dense_v_Sparse_v2]
+      pursuer_1:
+        classes: [Dense_v_Sparse_v1, Dense_v_Sparse_v2]
+      pursuer_2:
+        classes: [Dense_v_Sparse_v1, Dense_v_Sparse_v2]

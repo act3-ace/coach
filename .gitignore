@@ -1,0 +1,5 @@
+examples/Multipolicy/dense/*
+examples/Multipolicy/director/*
+examples/Multipolicy/explore/*
+examples/Multipolicy/tensorboard_log
+*/tensorboard_log

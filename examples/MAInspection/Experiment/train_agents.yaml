@@ -1,0 +1,10 @@
+waypointer:
+  env_params:
+    num_deputies: 1
+    _SB_SAFTY_MODE: true
+    _TRAIN_WAYPOINTER: true
+    _REWARD_FOR_LEAVING_PARAMETER: 0
+    _REWARD_FOR_LEAVING_OUTER_PERIMETER: 0
+    _CRASH_REWARD: 0
+    _REW_COV_MTRX: 22500 # 150^2
+    _PROX_RWD_SCALE: 10000

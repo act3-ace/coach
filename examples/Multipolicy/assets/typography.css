@@ -1,0 +1,190 @@
+body {
+    font-family: sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: black
+}
+
+.resume {
+    display: none;
+}
+
+.button4 {
+    background-color: white; /* Green */
+    border: none;
+    color: black;
+    padding: 15px 32px;
+    text-align: left;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    width: 100%;
+  }
+
+.button4:hover {
+    background-color: #DDDDDD; /* Green */
+    color: white;
+  }
+
+
+.float-container {
+    border: 3px solid #fff;
+    padding: 20px;
+    width: 600px;
+    margin:0;
+    height:300px;
+}
+
+.float-child {
+    width: 50%;
+    height:100%;
+    float: left;
+    padding: 20px;
+    border: 2px solid red;
+}  
+
+.agent_card {
+    float: left;
+    padding: 10px;
+    height: 150px;
+    width: 100%;
+    margin: auto;
+  }
+
+.action_cards {
+    float: left;
+    padding: 10px;
+    width: 80%;
+    margin: auto;
+  }
+
+.left_card {
+    float: left;
+    width: 25%;
+    height: 100%;
+    background-color: #aaa;
+    margin:auto;
+  }
+  
+.right_card {
+    float: left;
+    width: 70%;
+    height: 100%;
+    background-color: #bbb;
+    margin:auto;
+  }
+
+  .coa_card {
+    float: left;
+    width: 15%;
+    height: 100%;
+    background-color: #bbb;
+    margin:auto;
+  }
+
+.current_plan tr {
+    background-color: #ccc;
+}
+
+.archived_plan tr {
+    background-color: #eee;
+}
+
+.archived_plan tr:hover {
+    background-color: #ddd;
+}
+
+/* Clear floats after the columns */
+.agent_card_container:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+  
+
+/* Colors for sliders */
+
+.rc-slider-handle-1 {
+    border-color: #01befe;
+}
+
+.rc-slider-handle-1.rc-slider-handle-click-focused:focus {
+    border-color: #01befe;
+}
+
+.rc-slider-handle-1:hover {
+    border-color: #01befe;
+}
+
+/* ====================== */
+
+.rc-slider-handle-2 {
+    border-color: #ffdd00;
+}
+
+.rc-slider-handle-2.rc-slider-handle-click-focused:focus {
+    border-color: #ffdd00;
+}
+
+.rc-slider-handle-2:hover {
+    border-color: #ffdd00;
+}
+
+/* ====================== */
+
+.rc-slider-handle-3 {
+    border-color: #ff7d00;
+}
+
+.rc-slider-handle-3.rc-slider-handle-click-focused:focus {
+    border-color: #ff7d00;
+}
+
+.rc-slider-handle-3:hover {
+    border-color: #ff7d00;
+}
+
+/* ====================== */
+
+.rc-slider-handle-4 {
+    border-color: #ff006d;
+}
+
+.rc-slider-handle-4.rc-slider-handle-click-focused:focus {
+    border-color: #ff006d;
+}
+
+.rc-slider-handle-4:hover {
+    border-color: #ff006d;
+}
+
+/* ====================== */
+
+.rc-slider-handle-5 {
+    border-color: #adff02;
+}
+
+.rc-slider-handle-5.rc-slider-handle-click-focused:focus {
+    border-color: #adff02;
+}
+
+.rc-slider-handle-5:hover {
+    border-color: #adff02;
+}
+
+/* ====================== */
+
+.rc-slider-handle-6 {
+    border-color: #8f00ff;
+}
+
+.rc-slider-handle-6.rc-slider-handle-click-focused:focus {
+    border-color: #8f00ff;
+}
+
+.rc-slider-handle-6:hover {
+    border-color: #8f00ff;
+}
+
+/* ====================== */

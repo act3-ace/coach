@@ -1,0 +1,11 @@
+train_agents:
+  dense:
+    env_params:
+      n_evaders: 10
+      n_poisons: 40
+      n_pursuers: 1
+  explore:
+    env_params:
+      n_evaders: 5
+      n_poisons: 5
+      n_pursuers: 3
