@@ -1,5 +1,6 @@
 # ICAPS: Orchestrating autonomous agents: Reinforcement Learning To Hierarchical Planning with COACH
 
+## Introduction:
 In many real life applications, semi-autonomous multi-agent systems need to be controlled and evaluated by human operators. Consider the following scenarios: the routing of autonomous vehicles with potential communication interference, coordinated search with quad-copters whose on-board systems execute close quarters navigation faster than goals can be updated, or skill selection for agents engaged in complex coordinated maneuvers in a team-based activity. In all of these cases on-agent systems (control-based or deep learning-based) execute higher-level directed plans in a semi-autonomous fashion, without high resolution control from a directing agent. Such orchestration-style planning problems lie in a fascinating grey area between reinforcement learning, general planning, and human-on-the-loop system design. 
 
 Unfortunately, the technical challenge of coordinating multiple hierarchical agents across multiple systems with complex communication schedules makes for a high barrier for entry for practical research. To facilitate further research in this area, we will guide tutorial participants in using open source tools to easily convert their existing simulations into semi-autonomous planning problems.
@@ -10,9 +11,14 @@ COACH provides tools for researchers to bridge this gap: given any simulation co
 
 In this tutorial, we will go over the transformation of a traditional RL problem into a director/semi-autonomous agent style planning problem on an environment chosen from the PettingZoo repository. 
 
-* Train multiple agent policies using Stable Baselines3. (Link to Colab)
-* Train a director agent to dynamically assign policies from a policy library to agents in a simulation. (Link to Colab)
-* Create a Dash interface to view, edit and compare generated policies. (Link to Colab)
+## Section 1:
+Training multiple agent policies using Stable Baselines3. (Link to Colab)
+
+## Section 2:
+Training a director agent to dynamically assign policies from a policy library to agents in a simulation. (Link to Colab)
+
+## Section 3:
+Creating a Dash interface to view, edit and compare generated policies. (Link to Colab)
 
 
-This tutorial will be presented by Dr. Nate Bade. Dr. Bade is an award-winning educator and former teaching professor and program director of the MS in Applied Mathematics (MSAM) program at Northeastern University. He specialized in project based education and designed the MSAM’s graduate machine learning program. A sample curriculum is available at [on github](https://tipthederiver.github.io/Math-7243-2020/index.html). He is currently a Senior Data Scientist at Mobius Logic and works in coordination with ACT3 on hierarchical methods in multi-agent reinforcement learning and automated planning. 
+*This tutorial will be presented by Dr. Nate Bade. Dr. Bade is an award-winning educator and former teaching professor and program director of the MS in Applied Mathematics (MSAM) program at Northeastern University. He specialized in project based education and designed the MSAM’s graduate machine learning program. A sample curriculum is available at [on github](https://tipthederiver.github.io/Math-7243-2020/index.html). He is currently a Senior Data Scientist at Mobius Logic and works in coordination with ACT3 on hierarchical methods in multi-agent reinforcement learning and automated planning.*
