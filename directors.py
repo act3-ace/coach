@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from env import COACH_PettingZoo
+# from env import COACH_PettingZoo
 from stable_baselines3 import PPO
 
 import copy
@@ -22,12 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 class SB3_PPO_Director:
-    def __init__(self, env_creator, COACHEnvClass, params, model_path):
+    def __init__(self, COACH_PettingZoo, env_creator, COACHEnvClass, AgentsModule, params, model_path):
         self.env_creator = env_creator
         self.COACHEnvClass = COACHEnvClass
         self.params = params
 
-        self.env = COACH_PettingZoo(env_creator=env_creator, COACHEnvClass=COACHEnvClass)
+        self.env = COACH_PettingZoo.parallel_env(env_creator=env_creator, COACHEnvClass=COACHEnvClass, AgentsModule=AgentsModule)
         self.env.augment(params)
 
         if model_path.endswith(".zip"):

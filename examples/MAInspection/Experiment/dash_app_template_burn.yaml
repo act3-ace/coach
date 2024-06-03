@@ -1,0 +1,16 @@
+interfaces:
+  Default: # Name of Interface
+    interface_class: DefaultInterface
+    models: 
+      Default:
+        class_name: DefaultActor
+        params:
+          max_action_len: 10
+
+directors:
+  PPO_Director:
+    class_name: SB3_PPO_Director
+    path: <DIRECTOR_PATH>
+    roles:
+      player_0:
+        classes: [Default]

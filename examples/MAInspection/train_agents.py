@@ -31,6 +31,8 @@ import numpy as np
 import yaml
 import copy
 
+from utilities.sb3 import SB_PPO_Standard_MLP
+
 import torch 
 CORES = 7
 torch.set_num_threads(CORES)
@@ -95,9 +97,14 @@ def train_butterfly_supersuit(
     with open(os.path.join(weight_path, "params.yaml"), "w") as f:
         yaml.dump(model_args, f, default_flow_style=False)
 
+    eval_callback = EvalCallback(eval_env, verbose=1, eval_freq=1000)
     model.learn(total_timesteps=steps, callback=eval_callback)
     model.save(os.path.join(weight_path, "model"))
 
+    tmp = SB_PPO_Standard_MLP(model)
+    tmp.save(os.path.join(weight_path, "model.json"))
+    del tmp
+    
     print("Model has been saved.")
     print(f"Finished training on {str(env.unwrapped.metadata['name'])}.")
 

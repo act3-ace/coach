@@ -19,6 +19,9 @@ from gymnasium.spaces import Box
 logger = logging.getLogger(__name__)
 from numpy.random import PCG64DXSM, Generator
 from agents import *
+import agents as agts_super
+from examples.MAInspection.Environments.env import hills_frame
+from utilities.sb3 import SB_PPO_Standard_MLP
 
 class WaypointInterface(TrivialInterface):
     def __init__(self, role, env):
@@ -47,8 +50,11 @@ class SB_PPOWaypointActor(BasicActor):
         super().__init__(role) 
 
         if policy_path[-3:] == "zip":
-            policy_path = policy_path.split(".")[0]
-        self.policy = PPO.load(policy_path)
+            policy_path = policy_path[:-4] + '.json'
+
+        tmp = SB_PPO_Standard_MLP()
+        tmp.load(policy_path)
+        self.policy = tmp
         self.next_waypoint = None
 
     def __str__(self):
@@ -74,10 +80,12 @@ class SB_PPOWaypointActor(BasicActor):
             pos = self.env.orb[self.role].r.to(self.env._OU_DIS).value
             pos_c = self.env.orb["chief"].r.to(self.env._OU_DIS).value
 
-            if self.env.OBSERVATION_FRAME == "Hills":
-                frame = self.env.hills_frame(self.env.orb[self.role])
-            else:
-                frame = self.env.ori[i] 
+            # if self.env.OBSERVATION_FRAME == "Hills":
+            #     frame = hills_frame(self.env.orb[self.role])
+
+            # else:
+            #     frame = self.env.ori[i] 
+            frame = self.env._local_frame("Chief Hills", self.role)
 
             rel_waypt = frame.T @ (self.next_waypoint + pos_c - pos).reshape(-1,1)
 
@@ -88,7 +96,7 @@ class SB_PPOWaypointActor(BasicActor):
                 self.next_waypoint = None
             else:
                 acting = True
-                action, _ = self.policy.predict(agent_obs, deterministic=True)
+                action = self.policy.predict(agent_obs)
 
         return action, {
             "acting": acting,
@@ -116,7 +124,7 @@ class SB_PPOWaypointActor(BasicActor):
 classes = [
     cls_obj
     for cls_name, cls_obj in inspect.getmembers(sys.modules[__name__])
-    if inspect.isclass(cls_obj) and cls_obj.__module__ == __name__
+    if inspect.isclass(cls_obj) and ((cls_obj.__module__ == __name__) or (cls_obj.__module__ == agts_super.__name__))
 ]
 
 Interfaces = {}

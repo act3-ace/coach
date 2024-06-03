@@ -1,0 +1,3 @@
+env_params: {}
+load_class: SB_PPOWaypointerActor
+name: ''

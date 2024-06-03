@@ -13,12 +13,12 @@ interfaces:
       PPOWaypointer:
         class_name: SB_PPOWaypointActor
         params:
-          policy_path: waypointer/MAInspect_20240213-193621/model.zip
+          policy_path: waypointer\MAInspect_20240602-194836\model.zip
 
 directors:
   PPO_Director:
     class_name: SB3_PPO_Director
-    path: director/MAInspect_20240206-211327.zip
+    path: director\MAInspect_20240602-201031.zip
     roles:
       player_0:
         classes: [PPOWaypointer]

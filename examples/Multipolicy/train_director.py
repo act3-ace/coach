@@ -26,6 +26,7 @@ import yaml
 from utilities.PZWrapper import PettingZooEnv
 from coach import COACHEnvironment
 from env import COACH_PettingZoo
+import agents as Agents
 
 from stable_baselines3 import PPO
 from stable_baselines3.ppo import MlpPolicy
@@ -188,10 +189,18 @@ if __name__ == "__main__":
         param["params"]["policy_paths"]["dense"] = DENSE_PATH
         param["params"]["policy_paths"]["explore"] = EXPLORE_PATH
 
-    env = COACH_PettingZoo(env_creator=get_env, COACHEnvClass=COACHEnvironment)
+    env = COACH_PettingZoo(
+        env_creator=get_env, 
+        COACHEnvClass=COACHEnvironment,
+        AgentsModule=Agents,
+        )
 
     def get_env_pz():
-        env = COACH_PettingZoo(env_creator=get_env, COACHEnvClass=COACHEnvironment)
+        env = COACH_PettingZoo(
+            env_creator=get_env, 
+            COACHEnvClass=COACHEnvironment,
+            AgentsModule=Agents,
+            )
         env.augment(params)
         env.reset()
         return env

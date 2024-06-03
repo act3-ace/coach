@@ -23,6 +23,7 @@ from utilities.PZWrapper import PettingZooEnv
 from examples.MAInspection.Environments import env as Multinspect
 from examples.MAInspection.Environments.MAIcoach import MAI_COACH
 import examples.MAInspection.Environments.MAIagents as MAIagents
+import env as COACH_PettingZoo
 
 # Logging
 import logging
@@ -58,6 +59,7 @@ if __name__ == "__main__":
     env_factory = COACHIntegration(
         env_creator=get_env, 
         COACHEnvClass=MAI_COACH,
+        COACH_PettingZoo=COACH_PettingZoo,
         parameters=params,
         agents_module=MAIagents,
         )
@@ -69,10 +71,7 @@ if __name__ == "__main__":
             }
 
     ## App Layout
-    proxy_url = re.sub("{{port}}", "8050", os.environ["VSCODE_PROXY_URI"])
-    proxy_url = re.sub(os.environ["ACEHUB_BASEURL"], "", proxy_url)
-    app = Dash(serve_locally=True, requests_pathname_prefix=proxy_url)
-
+    app = Dash(serve_locally=True)
     app.layout = app_layout(env_factory)
 
     app.run(debug=True)

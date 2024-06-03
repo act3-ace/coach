@@ -96,7 +96,9 @@ class Timeline:
         return self.length
 
     def __deepcopy__(self, memo):
-        return(copy.deepcopy(self.__dict__))
+        tmp = Timeline()
+        tmp.__dict__ = copy.deepcopy(self.__dict__)
+        return(tmp)
     
     def add_events_from_dict(self, events):
         # Expected format: 
@@ -216,8 +218,10 @@ class Timeline:
     
     def get(self, time, label):
         r = []
+
         if label not in self.labels.keys():
-            raise Exception(f"'{label}' not found in known labels: {list(labels.keys())}")
+            return None
+            # raise Exception(f"'{label}' not found in known labels: {list(labels.keys())}")
 
         for t, event in self.labels[label]:
             if t == time:
@@ -354,6 +358,7 @@ class Timelines:
     # def __deepcopy__(self, memo):
     #     tmp = self.__class__(labels=[])
     #     tmp.timelines = copy.deepcopy(self.timelines)
+    #     print("Copying Timeline", tmp.timelines)
 
     #     return(tmp)
 

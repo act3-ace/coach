@@ -21,6 +21,8 @@ from DASH.app import *
 
 from pettingzoo.sisl import waterworld_v4
 from utilities.PZWrapper import PettingZooEnv
+import agents as AgentsModule
+import env as COACH_PettingZoo
 
 # Logging
 import logging
@@ -59,7 +61,10 @@ if __name__ == "__main__":
     env_factory = COACHIntegration(
         env_creator=get_env, 
         COACHEnvClass=COACHEnvironment,
-        parameters=params
+        COACH_PettingZoo=COACH_PettingZoo,
+        parameters=params,
+        agents_module=AgentsModule,
+        render_gif=True
         )
 
     ct.env_factory = env_factory
@@ -69,9 +74,7 @@ if __name__ == "__main__":
             }
 
     ## App Layout
-    proxy_url = re.sub("{{port}}", "8050", os.environ["VSCODE_PROXY_URI"])
-    proxy_url = re.sub(os.environ["ACEHUB_BASEURL"], "", proxy_url)
-    app = Dash(serve_locally=True, requests_pathname_prefix=proxy_url)
+    app = Dash(serve_locally=True)
 
     app.layout = app_layout(env_factory)
 

@@ -1,0 +1,3 @@
+waypointer:
+  env_params:
+    n_pursuers: 2

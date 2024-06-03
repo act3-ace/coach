@@ -1,3 +1,5 @@
+## coach.py
+
 # Copyright (c) 2024 Mobius Logic, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +24,8 @@ import argparse
 import matplotlib.pyplot as plt
 from numpy.random import PCG64DXSM, Generator
 
+from gymnasium.utils import EzPickle
+
 import agents as agents
 from agents import (
     BasicActor,
@@ -29,7 +33,7 @@ from agents import (
     RandomActor
 )
 
-from utilities.timelines import Timeline, Timelines
+from utilities.timelines import Timeline, Timelines, TimelineEvent
 from utilities.planning import (
     COA, 
     CommunicationSchedule, 
@@ -62,9 +66,7 @@ def get_env_class(args: argparse.Namespace):
 
     return COACHEnvironment
 
-class COACHEnvironment:
-    agent_selection = agents
-
+class COACHEnvironment(EzPickle):
     def __init__(
         self,
         env_creator: callable,
@@ -72,9 +74,10 @@ class COACHEnvironment:
         agents=dict(),
         fill_random=True,
         comm_schedule:Timeline=None,
-        seed=6234235,
+        seed:int=6234235,
         TrajectoryClass = Trajectory,
-    ):
+    ):  
+        EzPickle.__init__(self, env_creator, parameter_generator, agents, fill_random, comm_schedule, seed, TrajectoryClass)
         self.env_creator = env_creator
         self.env = env_creator()
         self.parameter_generator = parameter_generator
@@ -84,14 +87,16 @@ class COACHEnvironment:
         self.seed = seed
         self.TrajectoryClass = TrajectoryClass
 
-        if comm_schedule is None:
-            comm_schedule = Timelines(labels=["blackout", "checkins"])
-            comm_schedule.checkins.add_event(time=0, )
-        self.comm_schedule = comm_schedule
-
         self.rendering=False
 
         self.reset()
+
+        if comm_schedule is None:
+            comm_schedule = Timelines(labels=["blackouts", "checkins"])            
+            comm_schedule.checkins.add_event(time=0, event=TimelineEvent(parameters=None, label="checkins"))
+
+            comm_schedule.ALLOW_AGENT_BREAK = True
+        self.comm_schedule = comm_schedule
 
         for k in agents.keys():
             if not k in self.env.possible_agents:
@@ -214,7 +219,7 @@ class COACHEnvironment:
 
         return trajectory
     
-    def start_rendering(self, steps_per_frame = 10):
+    def start_rendering(self, steps_per_frame = 1):
         self.steps_per_frame = steps_per_frame
         self.rendering=True
 
@@ -514,13 +519,16 @@ class COACHEnvironment:
 
         if ao == "rewards":
             components = [0]
-            data = traj.step_returns
+            data = {p:[] for p in players}
             xs = np.zeros([len(players), len(components), len(data)-1])
 
-            for j, t in enumerate(data):
+            for j, t in enumerate(traj.step_returns):
                 if j > 0: # The initial state has no reward
                     for i, p in enumerate(players):
-                        xs[i, :, j] = t[1][p]
+                        data[p].append(t[1][p])
+
+            data = {p:np.array(v).reshape(-1,1) for p,v in data.items()}
+            labels = {p:p + " Reward" for p in players}
 
         n_axes = sum([s.shape[1] for s in data.values()])
         # Setup Figures

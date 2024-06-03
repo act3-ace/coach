@@ -37,6 +37,7 @@ from gymnasium.spaces import Box, Discrete, flatten, flatten_space, unflatten
 from numpy.typing import NDArray
 from pettingzoo.utils.conversions import aec_to_parallel
 from pettingzoo.utils.env import AECEnv, ParallelEnv
+from gymnasium.utils import EzPickle
 
 from .PZParams import PettingZooEnvParams
 
@@ -93,9 +94,10 @@ def env_creator(**kwargs):
 ################################################################################
 ## Main Class
 ################################################################################
-class PettingZooEnv:
+class PettingZooEnv():
     def __init__(self, PZGame) -> None:
         """ """
+        # EzPickle.__init__(self, PZGame)
         def env_creator(**kwargs):
             return PZGame.parallel_env(**kwargs)
         

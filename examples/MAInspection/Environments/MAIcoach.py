@@ -31,6 +31,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import examples.MAInspection.Environments.MAIagents as agents
+from examples.MAInspection.Environments.env import hills_frame
 import io
 from PIL import Image
 
@@ -108,19 +109,50 @@ class MAI_Trajectory(Trajectory):
 
     def add(self, env, action, step_return, agent_info, frame=None):
         super().add(env, action, step_return, agent_info, frame=frame)
-        frame = env.hills_frame(env.orb["chief"])
+        frame = hills_frame(env.orb["chief"])
         
         # Here: would be frame.T because we're mapping from absolute coords to 
         # chief frame, so right mul is the same
         # for orientation, recall that self.ori[k, axis, :] is the k'th 
         # agent's axis, with axis 0 being the heading. 
+        # env.ori.shape = (num_deputies, [h,p,y], R)
 
         self.pos.append(copy.copy(env.pos) @ frame)
-        self.ori.append(copy.copy(env.ori) @ frame)
+        self.ori.append(copy.copy(np.array(env.ori_background)) @ frame) 
+        # logger.info("env.ori_background: %s", str(env.ori_background))
+
+        # self.ori.append(copy.copy(env.ori) @ frame)
         self.pts.append(copy.copy(env.pts) @ frame)
         self.unobserved_points.append(copy.copy(env.unobserved_points))
         self.cumm_rewards.append(copy.copy(env.cum_rewards))
 
+
+def angle_cone(x, v, L=100, theta=np.pi/8, N=8):
+    M = np.tan(theta)
+    v = v/np.linalg.norm(v)
+    v_p1 = np.array([v[1], -v[0], 0])
+    v_p1 = v_p1/np.linalg.norm(v_p1)
+    v_p2 = np.cross(v, v_p1)
+
+    pts = [np.array([0,0,0])]
+    for i in range(N):
+        pts.append( M * np.cos(2*np.pi*i/N) * v_p1 + M*np.sin(2*np.pi*i/N) * v_p2 + v )
+
+    idxes = []
+    for i in range(N):
+        idxes.append([0,])
+    pts = L*np.stack(pts)
+    pts = pts + x
+    
+    # logger.info(pts)
+    return go.Mesh3d(
+        x=pts[:,0],
+        y=pts[:,1],
+        z=pts[:,2],
+        opacity=.1,
+        alphahull=0,
+        name='y',
+    )
 
 class MAI_COACH(COACHEnvironment):
     agent_selection = agents
@@ -164,6 +196,7 @@ class MAI_COACH(COACHEnvironment):
         game_len = len(traj)
         num_points = env.num_points
         chief_perim = env._CHIEF_PERIMETER
+        _VISION_ARC = env._VISION_ARC.value
         
         # 3 dim: pos, 4 dim: color
         xs = np.zeros([game_len, len(players), 7])
@@ -212,7 +245,7 @@ class MAI_COACH(COACHEnvironment):
 
         ## Get Seen Points
         pts = traj.pts[0]
-        u_set = traj.unobserved_points[0]
+        u_set = traj.unobserved_points[-1]
 
         unseen = np.zeros(pts.shape[0], dtype=bool)
         unseen[list(u_set)] = True
@@ -242,22 +275,29 @@ class MAI_COACH(COACHEnvironment):
         )
 
         # View Cones:
-        traces.append(
-            go.Cone(
-                x=cones[:, 0],
-                y=cones[:, 1],
-                z=cones[:, 2],
-                u=cones[:, 3],
-                v=cones[:, 4],
-                w=cones[:, 5],
-                opacity=0.1,
-                showscale=False,
-                showlegend=False,
-                sizemode="absolute",
-                sizeref=10,
-                anchor="tip",
-            )
-        )
+        for i in range(cones.shape[0]):
+            traces.append(angle_cone(
+                x=cones[i, :3], 
+                v=cones[i, 3:6],
+                theta=_VISION_ARC
+                ))
+
+        # traces.append(
+        #     go.Cone(
+        #         x=cones[:, 0],
+        #         y=cones[:, 1],
+        #         z=cones[:, 2],
+        #         u=cones[:, 3],
+        #         v=cones[:, 4],
+        #         w=cones[:, 5],
+        #         opacity=0.1,
+        #         showscale=False,
+        #         showlegend=False,
+        #         sizemode="absolute",
+        #         sizeref=10,
+        #         anchor="tip",
+        #     )
+        # )
 
         fig = go.Figure(data=traces)
         fig.update_layout(

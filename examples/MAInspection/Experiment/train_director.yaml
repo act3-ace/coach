@@ -1,15 +1,15 @@
 env_params:
   num_deputies: 1
-  max_episode_steps: 150
+  max_episode_steps: 20
   _TRAIN_WAYPOINTER: false
 COACH_params:
   stochastic: true
   FIXED_STEPS_PER_COM:
-    checkin_frequency: 20
+    checkin_frequency: 5
     allow_agent_break: False
   ACTION_PADDING: 0
-  MIN_NEXT_ACTION_TIME: 19
-  MAX_NEXT_ACTION_TIME: 20
+  MIN_NEXT_ACTION_TIME: 0
+  MAX_NEXT_ACTION_TIME: 5
   seed: 453413
   Agents:
     player_0:

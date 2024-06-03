@@ -1,0 +1,9 @@
+env_params:
+  <ENV PARAMETER>: <VALUE>
+COACH_params:
+  <COACH PARAMETER>: <VALUE>
+  Agents:
+    <ROLE NAME>:
+      class_name: <AGENT CLASS>
+      params:
+        <AGENT PARAMETER>: <VALUE>

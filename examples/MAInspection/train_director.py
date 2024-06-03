@@ -27,6 +27,7 @@ sys.path.insert(0, "../../")
 from utilities.PZWrapper import PettingZooEnv
 from examples.MAInspection.Environments.MAIcoach import MAI_COACH
 from examples.MAInspection.Environments import env as Multinspect
+from examples.MAInspection.Environments import MAIagents as Agents
 from env import COACH_PettingZoo
 
 from stable_baselines3 import PPO
@@ -35,7 +36,7 @@ from stable_baselines3.common.callbacks import EvalCallback
 import supersuit as ss
 
 import torch 
-CORES = 6
+CORES = 1
 torch.set_num_threads(CORES)
 torch.set_num_interop_threads(CORES)
 
@@ -55,7 +56,7 @@ for log_handler in pymunk_loggers:
 # %%
 def train(
     env_fn, 
-    steps: int = 10_000, 
+    steps: int = 10, 
     seed: int | None = 0, 
     num_vec_envs=1, 
     num_cpus=1,
@@ -87,7 +88,7 @@ def train(
     eval_env = env_fn()
     eval_env = ss.pettingzoo_env_to_vec_env_v1(eval_env)
     eval_env = ss.concat_vec_envs_v1(eval_env, num_vec_envs=num_vec_envs, num_cpus=num_cpus, base_class="stable_baselines3")
-    eval_callback = EvalCallback(eval_env, verbose=1, eval_freq=500)
+    eval_callback = EvalCallback(eval_env, verbose=1, eval_freq=1000)
 
     model.learn(total_timesteps=steps, callback=eval_callback)
 
@@ -174,10 +175,11 @@ def get_env():
 
 if __name__ == "__main__":
     WAYPOINTER_DIR = "waypointer"
-    WAYPOINTER_PATH = min(glob.iglob('waypointer/*'), key=os.path.getctime)
+    WAYPOINTER_PATH = max(glob.iglob('waypointer/*'), key=os.path.getctime)
 
-    WAYPOINTER_PATH = min(glob.iglob(os.path.join(WAYPOINTER_PATH, '*.zip')), key=os.path.getctime)
+    WAYPOINTER_PATH = max(glob.iglob(os.path.join(WAYPOINTER_PATH, '*.zip')), key=os.path.getctime)
 
+    print(WAYPOINTER_PATH)
     with open(os.path.join("Experiment", "train_director.yaml"), "r") as stream:
         try:
             params = yaml.safe_load(stream)
@@ -187,17 +189,24 @@ if __name__ == "__main__":
     for agent, param in params["COACH_params"]["Agents"].items():
         param["params"]["policy_path"] = WAYPOINTER_PATH
 
-    env = COACH_PettingZoo(env_creator=get_env, COACHEnvClass=MAI_COACH)
+    env = COACH_PettingZoo(
+        env_creator=get_env, 
+        COACHEnvClass=MAI_COACH,
+        AgentsModule=Agents
+        )
 
     def get_env_pz():
-        env = COACH_PettingZoo(env_creator=get_env, COACHEnvClass=MAI_COACH)
+        env = COACH_PettingZoo(
+            env_creator=get_env, 
+            COACHEnvClass=MAI_COACH,
+            AgentsModule=Agents)
         env.augment(params)
         env.reset()
         return env
 
     model_path = train(
         get_env_pz,
-        steps=500, 
+        steps=100, 
         seed=0, 
         model_dir="director"
         )

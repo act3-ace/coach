@@ -253,8 +253,10 @@ class CommunicationSchedule(Timelines):
                 allow_agent_break=copy.copy(self.allow_agent_break),
             )
         
-        tmp = self.__class__(labels=[])
-        tmp.timelines = copy.deepcopy(self.timelines)
+        tmp = self.__class__(length=0, allow_agent_break=self.ALLOW_AGENT_BREAK)
+        tmp.__dict__["timelines"] = {k: copy.deepcopy(v) for k, v in self.timelines.items()}
+
+        print("Copying Scheudle:", tmp.checkins)
 
         return(tmp)
 

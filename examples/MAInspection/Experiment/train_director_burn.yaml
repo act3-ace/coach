@@ -1,0 +1,18 @@
+env_params:
+  num_deputies: 1
+  max_episode_steps: 150
+  _TRAIN_WAYPOINTER: false
+COACH_params:
+  stochastic: true
+  FIXED_STEPS_PER_COM: # Fixed steps per com means that we give on instruction ever <checkin_freqency> game steps. 
+    checkin_frequency: 20 # How often do we pause for a next burn instruction
+    allow_agent_break: False # Can agents force game to break? Default actor doesn't 
+  ACTION_PADDING: 0
+  MIN_NEXT_ACTION_TIME: 19
+  MAX_NEXT_ACTION_TIME: 20
+  seed: 453413
+  Agents:
+    player_0:
+      class_name: "DefaultActor"
+      params:
+        max_action_len: 10

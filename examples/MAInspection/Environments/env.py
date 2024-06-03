@@ -18,45 +18,46 @@
 import argparse  # for type hinting
 import copy
 import logging
+
+# import sys
 from collections.abc import Callable  # for type hinting
-from typing import Any, Optional, TypeVar, Union, cast, NewType
+from typing import Any, NewType, Optional, Union, cast  # TypeVar,
 
 import gymnasium as gym
 import imageio
-import matplotlib  # type: ignore[import]
-import matplotlib.lines as mlines  # type: ignore[import]
+
+# import matplotlib  # type: ignore[import]
+# import matplotlib.lines as mlines  # type: ignore[import]
 import matplotlib.pyplot as plt  # type: ignore[import]
 import numpy as np
+from astropy import units as u
 
 # from pettingzoo.utils.env import ParallelEnv
 from matplotlib.backends.backend_agg import (
     FigureCanvasAgg as FigureCanvas,  # type: ignore[import]
 )
-from matplotlib.collections import LineCollection
+
+# from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection  # type: ignore[import]
 from numpy.random import PCG64DXSM, Generator
+from numpy.typing import NDArray
+from pettingzoo import ParallelEnv
+from poliastro.bodies import Earth  # Mars,; Sun
+from poliastro.maneuver import Maneuver
+from poliastro.twobody import Orbit
 from scipy.spatial.transform import Rotation  # type: ignore[import]
 from scipy.stats import multivariate_normal, ortho_group  # type: ignore[import]
 
-import sys
+# matplotlib.use("agg")
+logger = logging.getLogger(__name__)
 
-from numpy.typing import NDArray
 FloatArray = NDArray[np.float_]
 RenderFrame = NDArray[np.uint8]
 Role = NewType("Role", str)
 
-from astropy import units as u
-from poliastro.maneuver import Maneuver
-from poliastro.bodies import Earth, Mars, Sun
-from poliastro.twobody import Orbit
-
-matplotlib.use("agg")
-logger = logging.getLogger(__name__)
-
-from pettingzoo import ParallelEnv
 
 #######################################################
-## Factories
+# Factories
 #######################################################
 def get_env_class(args: argparse.Namespace) -> Callable[..., Any]:
     """Returns the class to use, based on input arguments
@@ -73,40 +74,78 @@ def get_env_class(args: argparse.Namespace) -> Callable[..., Any]:
     """
     return MultInspect
 
-def unit(v):
-    if len(v.shape) == 1:
-        v = v.reshape(1,-1)
-    return v/np.linalg.norm(v,axis=1)[:,None]
-
-def proj(v, onto):
-    return onto * np.dot(v, onto) / np.dot(onto, onto)
-
-def frame(r, v):
-    r = unit(r)
-    v = unit(v)
-    n = np.cross(r,v, axis=1)
-
-    return np.stack([r,v,n],axis=2)
 
 def parallel_env(**kwargs):
     return MultInspect(**kwargs)
 
+
+#######################################################
+# Auxiliary Functions
+#######################################################
+def unit(v):
+    if len(v.shape) == 1:
+        v = v.reshape(1, -1)
+    return v / np.linalg.norm(v, axis=1)[:, None]
+
+
+def proj(v, onto):
+    return onto * np.dot(v, onto) / np.dot(onto, onto)
+
+
+def frame(r, v):
+    r = unit(r)
+    v = unit(v)
+    n = np.cross(r, v, axis=1)
+
+    return np.stack([r, v, n], axis=2)
+
+
+def hills_frame(orb):
+    r = orb.r
+    v = orb.v
+    v_p = v - proj(v, onto=r)
+    return frame(r, v_p)[0].decompose().value
+
+
+# def accel(self, t0, state, k, rate=1e-5):
+#     """Constant acceleration aligned with the velocity."""
+#     v_vec = state[3:]
+#     # v_vec = state[:3]
+#     norm_v = (v_vec * v_vec).sum() ** 0.5
+#     return -rate * v_vec / norm_v
+
+# def f(self, t0, u_, k):
+#     # t_0: time to evaluate at
+#     # u_ = [x,y,z,vx,vy,vz] in earth coords, rather annoyingly unitless.
+#     # Assumed units (I've tested this) are km and km/s
+
+#     # U.append(u_)
+#     du_kep = func_twobody(t0, u_, k)
+#     # ax, ay, az = self.accel(t0, u_, k, rate=1e-5)
+#     ax, ay, az = self.acc
+#     du_ad = np.array([0, 0, 0, ax, ay, az])
+#     return du_kep + du_ad
+
+
+#######################################################
+# Class
+#######################################################
 class MultInspect(ParallelEnv):
     """
     We assuime six axis movement:
         action space: [X-Thrust, Y-Thrust, Z-Thrust,
                        X-Clockwise Torque, Y-Clockwise Torque, Z-Clockwise Torque]
-    
+
     Some notes on linear algebra conventions and frames:
 
     All frames have columns as vectors in the background coordinate system R, so
-    for any frame M, M * v maps v to R. To traslate back, a vector in w in R is mapped to 
+    for any frame M, M * v maps v to R. To translate back, a vector in w in R is mapped to
     M^T * w.
 
     A good rule of thumb here is to understand every matrix as having units
     xf, where x is standard coords and f is frame coords. Since frames are orthonormal
     M^-1 = M^T. If we have a vcetor in frame 1 coords and we want it in frame 2
-    coords, we can just pass through the standard coords: M_1: v_f1 -> v_x, 
+    coords, we can just pass through the standard coords: M_1: v_f1 -> v_x,
     M_2^T: v_x -> v_f2, so M_2^T M_1 * v_f1 = v_f2 is a appropreate transform
 
     A source for physics: http://control.asu.edu/Classes/MMAE441/Aircraft/441Lecture9.pdf
@@ -123,11 +162,13 @@ class MultInspect(ParallelEnv):
     num_agents: int
         The length of the agents list.
     possible_agents: list[AgentID]
-        A list of all possible_agents the environment could generate. Equivalent to the list of agents in the observation and action spaces. This cannot be changed through play or resetting.
+        A list of all possible_agents the environment could generate. Equivalent to the list of agents in the
+        observation and action spaces. This cannot be changed through play or resetting.
     max_num_agents: int
         The length of the possible_agents list.
     observation_spaces: dict[AgentID, gym.spaces.Space]
-        A dict of the observation spaces of every agent, keyed by name. This cannot be changed through play or resetting.
+        A dict of the observation spaces of every agent, keyed by name. This cannot
+        be changed through play or resetting.
     action_spaces: dict[AgentID, gym.spaces.Space]
         A dict of the action spaces of every agent, keyed by name. This cannot be changed through play or resetting.
 
@@ -135,9 +176,14 @@ class MultInspect(ParallelEnv):
     Methods
     -------------
 
-    step(actions: dict[str, ActionType]) → tuple[dict[str, ObsType], dict[str, float], dict[str, bool], dict[str, bool], dict[str, dict]]
+    step(actions: dict[str, ActionType]) → tuple[dict[str, ObsType],
+                                                 dict[str, float],
+                                                 dict[str, bool],
+                                                 dict[str, bool],
+                                                 dict[str, dict]]
         Receives a dictionary of actions keyed by the agent name.
-        Returns the observation dictionary, reward dictionary, terminated dictionary, truncated dictionary and info dictionary, where each dictionary is keyed by the agent.
+        Returns the observation dictionary, reward dictionary, terminated dictionary,
+        truncated dictionary and info dictionary, where each dictionary is keyed by the agent.
     reset(seed: int | None = None, options: dict | None = None) → dict[str, ObsType]
         Resets the environment.
     seed(seed=None)
@@ -153,80 +199,93 @@ class MultInspect(ParallelEnv):
     action_space(agent: str) → Space
     """
 
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 50, "name": "MAInspect"}
-
+    metadata = {
+        "render_modes": ["human", "rgb_array"],
+        "render_fps": 50,
+        "name": "MAInspect",
+    }
 
     def __init__(self, render_mode="rgb_array", **kwargs) -> None:
         """ """
-        self.augment(params = kwargs)
         self.render_mode = render_mode
+        self.augment(params=kwargs)
 
-    def parallel_env(self, **kwargs):
-        return self
+    def augment(self, params: dict) -> None:
+        self._setup_gym_env(env_params=params)
 
     def _setup_gym_env(self, env_params: dict) -> None:
-        ## Setup parameters. All of this may be overwritten by the
-        ## params dictionary if the appropreate key exists.
-        ## The list below provides the default parameters
+        # Setup parameters. All of this may be overwritten by the
+        # params dictionary if the appropreate key exists.
+        # The list below provides the default parameters
 
-        self.verbose: bool = False
+        #######################
+        # Parameters
+        #######################
         self.six_axis: bool = True
-        self.num_deputies: int = 3
-        self.max_episode_steps: int = 500
+        self.num_deputies: int = 1
+        self.max_episode_steps: int = 100
         self.num_points: int = 20
 
         self.MAXTIME = 1 << u.h
-        self.TIME_PER_STEP = 1 << u.min
+        self._TIME_PER_STEP = 0.1 << u.min
 
-        # Compatability
-        # This disable some agents terminating before others. 
+        # Compatibility
+        # This disable some agents terminating before others.
         self._SB_SAFTY_MODE = True
 
         # Game Mode:
-        self._TRAIN_WAYPOINTER = True
+        self._TRAIN_WAYPOINTER = False
         self._WAYPOINT_ARRIVAL_PROX = 10 << u.m
         self._WAYPOINT_ARRIVE_REWARD = 1
+        self._WAYPOINT_NEAREST_REWARD = False
+        self._WAYPOINT_NEAREST_REWARD_SCALE = 10
+        self._WAYPOINT_START_AWAY_FROM_DEPUTY = True
 
         # Initial Conditions
-        self.INIT_ALT = 700 << u.km
+        self.INIT_ALT = 400 << u.km
         self.INIT_ALT_OFFSET = 50 << u.m
-        self.RAAN = 0 << u.deg ## Angle Around the Circular Orbit
-        self.ARGLAT = 0 << u.deg ## Latitude updown
-        self.INC = 0 << u.deg ## Direction of orbit
+        self.RAAN = 0 << u.deg  # Angle Around the Circular Orbit
+        self.ARGLAT = 0 << u.deg  # Latitude updown
+        self.INC = 0 << u.deg  # Direction of orbit
         self._STARTING_DISTANCE_FROM_CHIEF = 150 << u.m
 
-        self.offset_angle = (1/10)*(self._STARTING_DISTANCE_FROM_CHIEF / self.INIT_ALT).decompose().value << u.rad
+        self.offset_angle = (1 / 10) * (
+            self._STARTING_DISTANCE_FROM_CHIEF / self.INIT_ALT
+        ).decompose().value << u.rad
 
         # Action Frame
-        self.ACTION_FRAME = "Hills"         # Options should be Hills and Orientation
-        self.OBSERVATION_FRAME = "Hills"    # Options should be Hills and Orientation
-        self._OU_DIS = u.m 
-        self._OU_TIM = u.s 
-        self._OU_VEL = self._OU_DIS/self._OU_TIM
+        #  Options should be Hills, Orientation, Chief Hills
+        self.ACTION_FRAME: str = "Chief Hills"
+        self.OBSERVATION_FRAME: str = "Chief Hills"
+        #  Options should be Background, ActionFrame
+        self.ORI_CONSTANT_IN: str = "ActionFrame"
+
+        self._OU_DIS = u.m
+        self._OU_TIM = u.s
+        self._OU_VEL = self._OU_DIS / self._OU_TIM
 
         self._CHIEF_PERIMETER: float = 50 << u.m
-        self._DEPUTY_PERIMETER: float = 150  << u.m
+        self._DEPUTY_PERIMETER: float = 150 << u.m
         self._DEPUTY_MASS: float = 1 << u.kg
         self._DEPUTY_RADIUS: float = 1 << u.m
-        self._DEPUTY_THRUST_COEEF: float = 0.01
 
-        self._SIM_OUTER_PARAMETER: float = 200 << u.m #
-        self._MAX_OUTER_PERIMETER: float = 300 << u.m # If you leave here, you truncate
-        self._STARTING_VEL_NORM: float = 0 << u.m/u.s # 0.001
+        self._SIM_OUTER_PARAMETER: float = 200 << u.m  #
+        self._MAX_OUTER_PERIMETER: float = 300 << u.m  # If you leave here, you truncate
+        self._STARTING_VEL_NORM: float = 0 << u.m / u.s  # 0.001
 
-        self._TIME_PER_STEP: float = 90 << u.s
-        self._DELTA_V_PER_THRUST: float = 0.1 << u.m/u.s
+        self._TIME_PER_STEP: float = 30 << u.s
+        self._DELTA_V_PER_THRUST: float = 0.01 << u.m / u.s
         self._DELTA_T: float = 90 << u.s
-        self._TAU_per_THRUST: float = 0.1 
+        self._TAU_per_THRUST: float = 0.1
         self._USE_ANGULAR_MOMENTUM = False
 
         self._OBS_REWARD: float = 0.02  # 20
         self._REWARD_FOR_SEEING_ALL_POINTS: float = 1  # 200
         self._CRASH_REWARD: float = 0
-        self._REWARD_PER_STEP: float = 0.0   # -.1  # Reward per tick
+        self._REWARD_PER_STEP: float = 0.0  # -.1  # Reward per tick
         self._REWARD_FOR_LEAVING_PARAMETER: float = 0
         self._REWARD_FOR_LEAVING_OUTER_PERIMETER: float = 0
-        
+
         self._SOLID_CHIEF: bool = True
         self._MAX_BURN: float = 10
 
@@ -244,15 +303,14 @@ class MultInspect(ParallelEnv):
 
         # Apply parameters from input
         self._apply_parameters(params=env_params)
-        if hasattr(env_params,"args"):
+        if hasattr(env_params, "args"):
             self.master_seed: int = env_params.args.master_seed
         else:
             self.master_seed: int = 487924
-        self.seed(seed=self.master_seed)
-
 
         if self._TRAIN_WAYPOINTER:
             self.num_points = self.num_deputies
+            self._WAYPOINT_ARRIVAL_PROX = self._WAYPOINT_ARRIVAL_PROX << u.m
 
         # Check parameters from input
         assert self._MIN_VISION >= 0, "_MIN_VISION must be >= 0"
@@ -261,45 +319,47 @@ class MultInspect(ParallelEnv):
             self._VISION_ARC <= np.pi << u.rad
         ), "_VISION_ARC must be [0, pi]"
 
-        ## Setup actual Gym Env based on the above
-        self.agents: list[Role] = [Role(f"player_{i}") for i in range(self.num_deputies)]
+        ############
+        # Setup things
+        ############
+        # Setup actual Gym Env based on the above
+        self.agents: list[Role] = [
+            Role(f"player_{i}") for i in range(self.num_deputies)
+        ]
+        self.possible_agents = self.agents
 
         # Agent Velocity, Other Dep. Rel Position and Vel, Point Rel Position
         self._VISION: dict[Role, list[float]] = {
             role: [self._VISION_ARC, self._MIN_VISION, self._MAX_VISION]
-            for role in self.agents
+            for role in self.possible_agents
         }
 
-        in_size: int = (
-            6 + 6 * (self.num_deputies - 1) + 3 * self.num_points + self.num_points
-        )
-        
+        # observation spaces
         if self._TRAIN_WAYPOINTER:
             raw_low_values: list[float] = [
+                # -np.ones(3) * self.INIT_ALT.to(self._OU_DIS).value,
                 -self._MAX_OUTER_PERIMETER.value * np.ones(3),  # Chief Position
                 -self._MAX_OUTER_PERIMETER.value
                 * np.ones(3 * self.num_deputies),  # Deputy velocity
                 -2
                 * self._MAX_OUTER_PERIMETER.value
                 * np.ones(3 * (self.num_deputies - 1)),  # Dep. Positions, except me
-                -2
-                * self._MAX_OUTER_PERIMETER.value
-                * np.ones(3),  # Single Waypoint,
+                -2 * self._MAX_OUTER_PERIMETER.value * np.ones(3),  # Single Waypoint,
             ]
 
             raw_high_values: list[float] = [
+                # np.ones(3) * self.INIT_ALT.to(self._OU_DIS).value,
                 self._MAX_OUTER_PERIMETER.value * np.ones(3),  # Chief Position
                 self._MAX_OUTER_PERIMETER.value
                 * np.ones(3 * self.num_deputies),  # Deputy velocity
                 2
                 * self._MAX_OUTER_PERIMETER.value
                 * np.ones(3 * (self.num_deputies - 1)),  # Dep. Positions, except me
-                2
-                * self._MAX_OUTER_PERIMETER.value
-                * np.ones(3),  # Single Waypoint,
+                2 * self._MAX_OUTER_PERIMETER.value * np.ones(3),  # Single Waypoint,
             ]
         else:
             raw_low_values: list[float] = [
+                # -np.ones(3) * self.INIT_ALT.to(self._OU_DIS).value,
                 -self._MAX_OUTER_PERIMETER.value * np.ones(3),  # Chief Position
                 -self._MAX_OUTER_PERIMETER.value
                 * np.ones(3 * self.num_deputies),  # Deputy velocity
@@ -313,6 +373,7 @@ class MultInspect(ParallelEnv):
             ]
 
             raw_high_values: list[float] = [
+                # np.ones(3) * self.INIT_ALT.to(self._OU_DIS).value,
                 self._MAX_OUTER_PERIMETER.value * np.ones(3),  # Chief Position
                 self._MAX_OUTER_PERIMETER.value
                 * np.ones(3 * self.num_deputies),  # Deputy velocity
@@ -330,6 +391,7 @@ class MultInspect(ParallelEnv):
 
         obs_space = gym.spaces.Box(low=low, high=high, dtype=np.float32)
 
+        # action spaces
         if self.six_axis:
             low = np.array([-10, -10, -10, -np.pi, -np.pi, -np.pi], dtype=np.float32)
             act_space = gym.spaces.Box(low=low, high=-low, dtype=np.float32)
@@ -341,36 +403,36 @@ class MultInspect(ParallelEnv):
                 dtype=np.float32,
             )
 
-        self.possible_agents = self.agents
-
         self.observation_spaces = {role: obs_space for role in self.possible_agents}
         self.action_spaces = {role: act_space for role in self.possible_agents}
 
-        self.ori = np.zeros([self.num_deputies, 3, 3])       # Depute Orientation relative to absolute earth frame
-        self.rot = np.zeros([self.num_deputies, 3])          # Depute Angular Momentum
+        # positional embeddings
+        self.ori = np.zeros(
+            [self.num_deputies, 3, 3]
+        )  # Depute Orientation relative to absolute earth frame
+        self.rot = np.zeros([self.num_deputies, 3])  # Depute Angular Momentum
 
-        self.pos = np.zeros([self.num_deputies, 3])          # Depute Position Holder
-        self.vel = np.zeros([self.num_deputies, 3])          # Depute Velocity Holder
+        self.pos = np.zeros([self.num_deputies, 3])  # Depute Position Holder
+        self.vel = np.zeros([self.num_deputies, 3])  # Depute Velocity Holder
 
-        self.chief_frame = np.zeros([3, 3])                 # Current frame for the cheif relative to absolute earth frame      
-        self.frames = np.zeros([self.num_deputies, 3, 3])    # Current frame for the deputies relative to absolute earth frame
-        self.pts = np.zeros([self.num_deputies, 3])          # Chief Inspection Points
-        self.nor = np.zeros([self.num_deputies, 3])          # Chief Inspection Normals
+        self.chief_frame = np.zeros(
+            [3, 3]
+        )  # Current frame for the chief relative to absolute earth frame
+        self.frames = np.zeros(
+            [self.num_deputies, 3, 3]
+        )  # Current frame for the deputies relative to absolute earth frame
+        self.pts = np.zeros([self.num_deputies, 3])  # Chief Inspection Points
+        self.nor = np.zeros([self.num_deputies, 3])  # Chief Inspection Normals
 
-        self.sim_steps = 0
-
-        self.unobserved_points = set(range(self.num_points))
-
-        self.render_path: Optional[str] = None
-        self.frame_store: list[RenderFrame] = []
-        self.cum_rewards = np.zeros(self.num_deputies)
+        # setup rest of variables
+        self.reset()
 
     def _apply_parameters(self, params: dict) -> None:
         for k, v in params.items():
             self.__dict__[k] = copy.copy(v)
 
-    def augment(self, params: dict) -> None:
-        self._setup_gym_env(env_params=params)
+    def parallel_env(self, **kwargs):
+        return self
 
     def seed(self, seed: int) -> None:
         self.np_random = Generator(PCG64DXSM(seed=seed))
@@ -381,7 +443,13 @@ class MultInspect(ParallelEnv):
     def action_space(self, agent: Role) -> gym.spaces.Box:
         return self.action_spaces[agent]
 
-    ## Reset
+    def close(self) -> None:
+        pass
+
+    def state(self) -> None:
+        raise NotImplementedError("State Not Implemented.")
+
+    # Reset
     def reset(
         self,
         *,
@@ -390,7 +458,9 @@ class MultInspect(ParallelEnv):
         render_path: Optional[str] = None,
     ) -> tuple[dict[Role, Any], dict[Role, dict[str, Any]]]:
         """ """
+        # reset simulation time
         self.sim_steps = 0
+        self.unobserved_points = set(range(self.num_points))
 
         # Reset Seed
         local_seed = seed if (seed is not None) else self.master_seed
@@ -399,27 +469,57 @@ class MultInspect(ParallelEnv):
 
         # Create Orbits for centers of mass
         self.orb = dict()
-        self.orb_hist = []
 
-        # Construct Chief 
-        self.orb[f"chief"] = Orbit.circular(Earth, alt=self.INIT_ALT)
-        if self._TRAIN_WAYPOINTER:
-            self.pts = self._random_sphere(self.num_points, radius=self._DEPUTY_PERIMETER)
-        else:
-            self.pts = self._random_sphere(self.num_points, radius=self._CHIEF_PERIMETER)
-
-        self.chief_angular_momentum = None
-        # self.chief_angular_momentum = Rotation.from_euler("xyz", [1,0,0]).as_matrix()
+        # Construct Chief
+        self.orb["chief"] = Orbit.circular(Earth, alt=self.INIT_ALT)
 
         # Construct Deputies
-        self._active = np.array([role in self.agents for role in self.possible_agents])
+        self._active = np.full((self.num_deputies,), fill_value=True, dtype=bool)
 
         # Deputy Orbits
-        for i in range(self.num_deputies):
-            self.orb[f"player_{i}"] = Orbit.circular(Earth, alt=self.INIT_ALT + i*self.INIT_ALT_OFFSET, raan = self.offset_angle)
+        for i, role in enumerate(self.possible_agents):
+            self.orb[role] = Orbit.circular(
+                Earth,
+                alt=self.INIT_ALT + i * self.INIT_ALT_OFFSET,
+                raan=self.offset_angle,
+            )
 
         self.ori = np.stack([local_og.rvs() for i in range(self.num_deputies)])
-        self.rot = self._random_sphere(self.num_deputies, radius=self._CHIEF_PERIMETER)
+        self.rot = self._random_sphere(self.num_deputies, radius=1)
+
+        # Waypointer
+        if self._TRAIN_WAYPOINTER:
+            # Points are fixed in the chiefs hills frame, so we have to convert there:
+            if self._WAYPOINT_START_AWAY_FROM_DEPUTY:
+                # position of things in chief frame
+                cframe = hills_frame(orb=self.orb["chief"])
+                pos = self.pos @ cframe  # = (cframe.T @ self.pos.T).T
+
+                self.pts = (
+                    np.zeros([self.num_deputies, 3]) << self._DEPUTY_PERIMETER.unit
+                )
+                for i in range(self.num_deputies):
+                    pt = self._random_sphere(1, radius=self._DEPUTY_PERIMETER)
+                    while (
+                        np.linalg.norm(pt - pos[i, :]) < 2 * self._WAYPOINT_ARRIVAL_PROX
+                    ):
+                        pt = self._random_sphere(1, radius=self._DEPUTY_PERIMETER)
+
+                    self.pts[i] = pt
+            else:
+                self.pts = self._random_sphere(
+                    self.num_points, radius=self._DEPUTY_PERIMETER
+                )
+
+            self.closest_distance = (
+                2 * np.ones(self.num_deputies) * self._MAX_OUTER_PERIMETER
+            )
+        else:
+            self.pts = self._random_sphere(
+                self.num_points, radius=self._CHIEF_PERIMETER
+            )
+
+        self.chief_angular_momentum = None
 
         # Make Initial Observations
 
@@ -429,28 +529,48 @@ class MultInspect(ParallelEnv):
         else:
             obs = self._make_observations()
 
-        self.unobserved_points = set(range(self.num_points))
-        self.truncated = {Role(f"player_{i}"): False for i in range(self.num_deputies)}
-        
+        self.truncated = {role: False for role in self.possible_agents}
+
         # Initial relative positions and velocities
-        self.pos = np.stack([self.orb[role].r-self.orb["chief"].r for role in self.possible_agents])
-        self.vel = np.stack([self.orb[role].v-self.orb["chief"].v for role in self.possible_agents])
+        self.pos = np.stack(
+            [self.orb[role].r - self.orb["chief"].r for role in self.possible_agents]
+        )
+        self.vel = np.stack(
+            [self.orb[role].v - self.orb["chief"].v for role in self.possible_agents]
+        )
 
         # Setup Reward Structure for waypoints
         self.pt_prox = []
         for i in range(self.num_points):
-            self.pt_prox.append(multivariate_normal(mean=self.pts[i], cov=self._REW_COV_MTRX))
+            self.pt_prox.append(
+                multivariate_normal(mean=self.pts[i], cov=self._REW_COV_MTRX)
+            )
 
         self.cum_rewards = np.zeros(self.num_deputies)
 
         # Setup Longterm Rendering
-        self.render_path = render_path
+        self.render_path: Optional[str] = render_path
+        self.frame_store: list[RenderFrame] = []
         if render_path:
             frame = self.render()
             assert frame is not None
             self.frame_store = [frame]
 
         self.render_data = dict()
+
+        # Hold absolute orientations for telemetry:
+        self.ori_background = []
+        for player, role in enumerate(self.possible_agents):
+            frame = self._local_frame(
+                local_frame=self.ACTION_FRAME, role=role, role_count=player
+            )
+
+            # self.ori.shape = (num_deputies, [h,p,y], R)
+            if self.ORI_CONSTANT_IN == "Background":
+                self.ori_background.append(self.ori[player, :, :])
+            else:
+                assert self.ORI_CONSTANT_IN == "ActionFrame"
+                self.ori_background.append(self.ori[player, :, :] @ frame)
 
         return obs, {agt: dict() for agt in self.possible_agents}
 
@@ -464,23 +584,27 @@ class MultInspect(ParallelEnv):
         dict[Role, dict[str, Any]],  # info
     ]:
         """ """
+        # logger.info("Orientation: %s", self.ori)
         # truncated = self.truncated
         self.terminated_this_step = False
 
         # Propagate Motion In Time
         self._propagate_objects(action)
 
-        self.pos = np.stack([self.orb[role].r-self.orb["chief"].r for role in self.possible_agents])
-        self.vel = np.stack([self.orb[role].v-self.orb["chief"].v for role in self.possible_agents])
-
-        # Compute Which Points Seen
-        just_seen = self._detect_points()
+        self.pos = np.stack(
+            [self.orb[role].r - self.orb["chief"].r for role in self.possible_agents]
+        )
+        self.vel = np.stack(
+            [self.orb[role].v - self.orb["chief"].v for role in self.possible_agents]
+        )
 
         # Compute rewards
         if self._TRAIN_WAYPOINTER:
-            self._compute_waypoint_reward(just_seen)
+            self._compute_waypoint_reward()
             obs = self._make_waypoint_observations()
         else:
+            # Compute Which Points Seen
+            just_seen = self._detect_points()
             self._compute_reward(just_seen)
             obs = self._make_observations()
 
@@ -510,9 +634,11 @@ class MultInspect(ParallelEnv):
             agt: dict() for agt in self.possible_agents
         }
 
-        self.terminated = {agt: self.terminated_this_step for agt in self.possible_agents}
+        self.terminated = {
+            agt: self.terminated_this_step for agt in self.possible_agents
+        }
 
-        # Remove Terminated and Truncated agents from avaiable agent lists
+        # Remove Terminated and Truncated agents from available agent lists
         if self._SB_SAFTY_MODE:
             self.agents = self.possible_agents
         else:
@@ -520,139 +646,499 @@ class MultInspect(ParallelEnv):
             for role in self.possible_agents:
                 if not (self.terminated[role] or self.truncated[role]):
                     self.agents.append(role)
-        
 
         # Set the internal active players array
         self._active = np.array([role in self.agents for role in self.possible_agents])
 
         return (self.obs, self.reward, self.terminated, self.truncated, self.info)
 
+    ###########################
+    # Observation-related Functions
+    ###########################
+    def _local_frame(
+        self, local_frame: str, role: str, role_count: Optional[int] = None
+    ):
+        if local_frame == "Hills":
+            return hills_frame(self.orb[role])
+        elif local_frame == "Chief Hills":
+            return hills_frame(self.orb["chief"])
+        else:
+            assert local_frame == "Orientation"
+            return self.ori[role_count]
 
+    def _make_pv(self):
+        # aux function for observations
+        # agent positions and velocities
+        pos_d = (
+            np.stack([self.orb[role].r for role in self.possible_agents])
+            .T.to(self._OU_DIS)
+            .value
+        )
+        vel_d = (
+            np.stack([self.orb[role].v for role in self.possible_agents])
+            .T.to(self._OU_VEL)
+            .value
+        )
+
+        # chief position and velocity
+        pos_c = self.orb["chief"].r.reshape(-1, 1).to(self._OU_DIS).value
+        vel_c = self.orb["chief"].v.reshape(-1, 1).to(self._OU_VEL).value
+
+        # point positions
+        pos_p = self.pts.T.to(self._OU_DIS).value
+
+        return pos_d, vel_d, pos_c, vel_c, pos_p
+
+    def _make_rel_pv(
+        self, obs_frame: str, role: Role, role_count: int, vel_d, vel_c, pos_d, pos_c
+    ):
+        # aux function for player-frame positions and velocities
+        #  these are every other player/point relative to me
+
+        # Recall: Moving from absolute coords into a frame is left multiplacation
+        # by the transpose
+
+        # My frame
+        frame = self._local_frame(
+            local_frame=obs_frame, role=role, role_count=role_count
+        )
+
+        # Velocities
+        # Relative velocities of all other deputies in my frame
+        vel_in_frame = frame.T @ (vel_d - vel_d[:, [role_count]])
+        dep_rel_v = np.delete(arr=vel_in_frame, obj=role_count, axis=1)
+
+        # Relative velocity of chief in my frame
+        chief_rel_v = frame.T @ (vel_c - vel_d[:, [role_count]])
+
+        # Positions
+        # Relative positions of all other deputies in my frame
+        dep_rel_p = frame.T @ np.delete(
+            arr=pos_d - pos_d[:, [role_count]], obj=role_count, axis=1
+        )
+
+        # Relative position of chief in my frame
+        chief_rel_d = pos_c - pos_d[:, [role_count]]
+        chief_rel_p = frame.T @ chief_rel_d
+
+        return frame, chief_rel_d, chief_rel_p, chief_rel_v, dep_rel_p, dep_rel_v
+
+    def _make_waypoint_observations(
+        self, obs_frame: Optional[str] = None
+    ) -> dict[Role, FloatArray]:
+        """ """
+        # Return dictionary
+        # Play role will be keys, observations will be values
+        obs = dict()
+
+        if obs_frame is None:
+            obs_frame = self.OBSERVATION_FRAME
+
+        # get positions and velocities
+        pos_d, vel_d, pos_c, vel_c, pos_p = self._make_pv()
+
+        # loop over all deputies
+        for i, role in enumerate(self.possible_agents):
+            # Relative positions and velocities
+            (
+                frame,
+                chief_rel_d,
+                chief_rel_p,
+                chief_rel_v,
+                dep_rel_p,
+                dep_rel_v,
+            ) = self._make_rel_pv(
+                obs_frame := obs_frame,
+                role=role,
+                role_count=i,
+                vel_d=vel_d,
+                vel_c=vel_c,
+                pos_d=pos_d,
+                pos_c=pos_c,
+            )
+
+            # Relative positions of all points in my frame
+            #  this is the main difference from the other observations.
+            #  We're only looking at the current waypoint in this version.
+            rel_pts = frame.T @ (pos_p[:, [i]] + chief_rel_d)
+
+            # Put the observation space together
+            tmp = np.concatenate(
+                [
+                    # pos_d[:, [i]],
+                    chief_rel_p,
+                    chief_rel_v,
+                    dep_rel_v,
+                    dep_rel_p,
+                    rel_pts,
+                ],
+                axis=1,
+            ).T
+            # print(tmp)
+
+            # Store observation space under appropriate role
+            obs[role] = tmp.reshape(-1)
+
+        return obs
+
+    def _make_observations(
+        self, obs_frame: Optional[str] = None
+    ) -> dict[Role, FloatArray]:
+        """ """
+        # Return dictionary
+        # Play role will be keys, observations will be values
+        obs = dict()
+
+        if obs_frame is None:
+            obs_frame = self.OBSERVATION_FRAME
+
+        # Setup point mask
+        #  hide points that have been observed
+        observedPoints = list(
+            set(range(self.num_points)).difference(self.unobserved_points)
+        )
+        pt_mask = np.ones(self.num_points)
+        pt_mask[observedPoints] = 0
+
+        # get positions and velocities
+        pos_d, vel_d, pos_c, vel_c, pos_p = self._make_pv()
+
+        # loop over all deputies
+        for i, role in enumerate(self.possible_agents):
+            # Relative positions and velocities
+            (
+                frame,
+                chief_rel_d,
+                chief_rel_p,
+                chief_rel_v,
+                dep_rel_p,
+                dep_rel_v,
+            ) = self._make_rel_pv(
+                obs_frame := obs_frame,
+                role=role,
+                role_count=i,
+                vel_d=vel_d,
+                vel_c=vel_c,
+                pos_d=pos_d,
+                pos_c=pos_c,
+            )
+
+            # Relative positions of all points in my frame
+            #  This is the main difference from the waypointer - here, we can see
+            #  all the points, while the waypointer is only looking at its next
+            #  waypoint.
+            rel_pts = frame.T @ (pos_p + chief_rel_d)
+
+            # Put the observation space together
+            tmp = np.concatenate(
+                [
+                    # pos_d[:, [i]],
+                    chief_rel_p,
+                    chief_rel_v,
+                    dep_rel_v,
+                    dep_rel_p,
+                    rel_pts,
+                ],
+                axis=1,
+            )
+
+            # Store observation space under appropriate role
+            obs[role] = np.concatenate([tmp.reshape(-1), pt_mask])
+
+        return obs
+
+    ###########################
+    # Reward-related Functions
+    ###########################
     def _compute_reward(self, just_seen: list[list[int]]) -> float:
-        self.sra = np.zeros(self.num_deputies) # Step Reward Array
-        self.step_rewards = {role: self.sra[i:i+1] for i, role in enumerate(self.agents)} # Slices are pointers to the reward array
+        # setup holder object for this step
+        self.sra = np.zeros(self.num_deputies)  # Step Reward Array
+        self.step_rewards = {
+            role: self.sra[i : i + 1] for i, role in enumerate(self.possible_agents)
+        }  # Slices are pointers to the reward array
 
-        self._insepct_reward(just_seen)
-        self._chief_prox_reward()
+        # shared rewards
         self._game_length_exceed()
+        self._prox_rewards()
+
+        # inspect-only rewards
+        self._inspect_reward(just_seen)
         self._seeing_all_points()
-        self._leaving_outer_perimeter()
 
+    def _compute_waypoint_reward(self) -> float:
+        # setup holder object for this step
+        self.sra = np.zeros(self.num_deputies)  # Step Reward Array
+        self.step_rewards = {
+            role: self.sra[i : i + 1] for i, role in enumerate(self.possible_agents)
+        }  # Slices are pointers to the reward array
 
-    def _compute_waypoint_reward(self, just_seen: list[list[int]]) -> float:
-        self.sra = np.zeros(self.num_deputies) # Step Reward Array
-        self.step_rewards = {role: self.sra[i:i+1] for i, role in enumerate(self.agents)} # Slices are pointers to the reward array
-        
-        self._go_towards_waypoint()
+        # shared rewards
         self._game_length_exceed()
-        self._leaving_outer_perimeter()
-        self._chief_prox_reward()
+        self._prox_rewards()
 
+        # waypoint-only rewards
+        self._go_towards_waypoint()
+
+    def _game_length_exceed(self):
+        # increment number of steps sim has taken
+        self.sim_steps += 1
+
+        # check if done
+        if self.sim_steps > self.max_episode_steps:
+            # Technically we were truncated
+            self.truncated = {role: True for role in self.possible_agents}
+            # Set sim to finished
+            self.terminated_this_step = True
+
+    def _prox_rewards(self):
+        # get distance for each player
+        player_dist = np.linalg.norm(self.pos, axis=1)
+
+        # Active and left outer perimeter?
+        out_perim = np.logical_and(
+            self._active, player_dist > self._MAX_OUTER_PERIMETER
+        )
+
+        # Active and outside the safe zone?
+        out_safe = np.logical_and(self._active, player_dist > self._SIM_OUTER_PARAMETER)
+
+        # Active and inside the chief?
+        in_chief = np.logical_and(self._active, player_dist < self._CHIEF_PERIMETER)
+
+        # Adjust rewards
+        self.sra[out_perim] += self._REWARD_FOR_LEAVING_OUTER_PERIMETER
+        self.sra[out_safe] += self._REWARD_FOR_LEAVING_PARAMETER
+        self.sra[in_chief] += self._CRASH_REWARD
+
+        # Adjust active agents
+        #  self.terminated is a dict, which needs the keys from self.possible_agents.
+        #  self.possible_agents is a list, which can't use boolean indexing.
+        done_idx = np.where(np.logical_or(out_perim, in_chief))[0]
+        for i in done_idx:
+            self._active[i] = False
+            self.terminated[self.possible_agents[i]] = True
+
+        # Check active agents
+        #  SB3 compatibility requires us end the sim if _any_ agent is done
+        if not np.all(self._active):
+            self.terminated_this_step = True
+
+    def _inspect_reward(self, just_seen):
+        """ """
+        # Object to track newly-seen points
+        #  This allows 2 satellites to see the same point in the same step.
+        track_pts: set = set()
+
+        for i, role in enumerate(self.possible_agents):
+            # only work on active agents
+            if self._active[i]:
+                # Initialize reward
+                #  Start with the survival reward
+                reward: float = self._REWARD_PER_STEP
+
+                # Check if seen points are new
+                new_pts: set = self.unobserved_points.intersection(just_seen[i])
+
+                # Check if new points were seen
+                if new_pts:
+                    # Reward for seeing points for the first time
+                    reward += len(new_pts) * self._OBS_REWARD
+                    # Track newly-seen points
+                    track_pts.update(new_pts)
+
+                # update agent reward
+                self.step_rewards[role] += reward
+
+        # update unseen points
+        self.unobserved_points = self.unobserved_points.difference(track_pts)
+
+    def _seeing_all_points(self):
+        # check if we have seen all the points
+        if len(self.unobserved_points) == 0:
+            # fraction of simtime left
+            R = (self.max_episode_steps - self.sim_steps) / self.max_episode_steps
+            # all agents get reward for finishing task
+            self.sra += R * self._REWARD_FOR_SEEING_ALL_POINTS
+            # stop the sim this step
+            self.terminated_this_step = True
 
     def _go_towards_waypoint(self):
         # We're going to change the reward structure to include waypointing
-        for i, role in enumerate(self.agents):
-            self.step_rewards[role] += self.pt_prox[i].pdf(self.pos[i]) * self._PROX_RWD_SCALE
-            if np.linalg.norm(self.pos[i] - self.pts[i]) < self._WAYPOINT_ARRIVAL_PROX:
-                self.step_rewards[role] += self._WAYPOINT_ARRIVE_REWARD
-                self.terminated_this_step = True
-            
 
+        # Points are fixed in the chiefs hills frame, so we have to convert there:
+        cframe = hills_frame(orb=self.orb["chief"])
+        pos = self.pos @ cframe  # = (cframe.T @ self.pos.T).T
 
-    def _seeing_all_points(self):
-        if len(self.unobserved_points) == 0:
-            R = (self.max_episode_steps - self.sim_steps) / self.max_episode_steps
-            self.sra += R * self._REWARD_FOR_SEEING_ALL_POINTS
-            self.terminated_this_step = True
-
-
-
-    def _leaving_outer_perimeter(self):
-        I = np.where(np.linalg.norm(self.pos, axis=1) > self._MAX_OUTER_PERIMETER)[0]
-
-        # print(np.linalg.norm(self.pos, axis=1) > self._MAX_OUTER_PERIMETER)
-        # print(I, self.possible_agents, self.pos)
-        for i in I:
-            role = Role(f"player_{i}")
-            if not self.truncated[role]:
-                self.truncated[role] = True
-                self.step_rewards[role] += self._REWARD_FOR_LEAVING_OUTER_PERIMETER
-
-
-
-    def _game_length_exceed(self):
-        self.sim_steps += 1
-        if self.sim_steps > self.max_episode_steps:
-            ## Technically we were truncated
-            self.truncated = {
-                Role(f"player_{i}"): True for i in range(self.num_deputies)
-            }
-            self.terminated_this_step = True
-
-
-
-    def _insepct_reward(self, just_seen):
-        """ """
         for i, role in enumerate(self.possible_agents):
-            seen_points = just_seen[i]
-            # Initialize reward
-            #  Start with the survival reward
-            reward: float = self._REWARD_PER_STEP
+            # only work on active agents
+            if self._active[i]:
+                # We get some reward for going towards a point
+                self.step_rewards[role] += (
+                    self.pt_prox[i].pdf(pos[i, :]) * self._PROX_RWD_SCALE
+                )
 
-            # Check if seen points are new
-            new_pts: set = self.unobserved_points.intersection(seen_points)
+                # calculate distance to thing - JB, idk what this is doing
+                pt_dist = np.linalg.norm(pos[i, :] - self.pts[i])
 
-            # Check if new points were seen
-            if new_pts:
-                # Reward for seeing points for the first time
-                reward += len(new_pts) * self._OBS_REWARD
-                # Update unseen points
-                self.unobserved_points = self.unobserved_points.difference(new_pts)
+                # replace shortest distance
+                if self.closest_distance[i] > pt_dist:
+                    self.closest_distance[i] = pt_dist
 
-            self.step_rewards[role] += reward
+                # did we arrive at a waypoint?
+                if pt_dist < self._WAYPOINT_ARRIVAL_PROX:
+                    # update my reward for arriving!
+                    self.step_rewards[role] += self._WAYPOINT_ARRIVE_REWARD
+                    # end simulation
+                    #  we assume there's only 1 deputy, sim ends when you get your point
+                    self.terminated_this_step = True
 
-        
+        # TODO: JB - idk what this is doing either
+        if self._WAYPOINT_NEAREST_REWARD and self.terminated_this_step:
+            # reward everyone based on where they are
+            self.sra += (
+                self._WAYPOINT_NEAREST_REWARD_SCALE / self.closest_distance.value
+            )
 
-    def _chief_prox_reward(self):
-        # Are we active and outside the safe zone?
-        outside_safe_zone = self._active & (np.linalg.norm(self.pos, axis=1) > self._SIM_OUTER_PARAMETER)
-        # Are we active and inside the chief?
-        inside_chief = self._active & (np.linalg.norm(self.pos, axis=1) < self._CHIEF_PERIMETER)
+    def _detect_points(self):
+        # List to return
+        #  We will fill this list with sublists of points each agent saw
+        just_seen = []
 
-        # Adjust reward
-        self.sra[outside_safe_zone] += self._REWARD_FOR_LEAVING_PARAMETER
-        self.sra[inside_chief] += self._CRASH_REWARD
+        # position of all agents in chief hills frame
+        cframe = hills_frame(orb=self.orb["chief"])
+        pos = self.pos @ cframe
 
-        # Kill agents inside chief 
-        self._active[inside_chief] = False
+        for player, role in enumerate(self.possible_agents):
+            # point holder
+            seen_points: list[int] = []
 
-        for i in np.where(inside_chief)[0]:
-            self.terminated_this_step = True
+            # only work on active agents
+            if self._active[player]:
+                # Detect Points:
+                #  This handles occlusion by the chief
+                #  Basically, what points are on the same side of the chief as you
+                seeable_points = np.where(
+                    (self.pts * (pos[player, :] - self.pts)).sum(axis=1) > 0
+                )[0]
 
+                ##########
+                # Spherical Vision
+                #########
+                # loop over possible points
+                for point in seeable_points:
+                    # Cone References
+                    # https://stackoverflow.com/questions/12826117/how-can-i-detect-if-a-point-is-inside-a-cone-or-not-in-3d-space
+                    #  We're going to not use the cone, and switch to using a shell
+                    #  The initial distance calc though is fine, and easy
+                    #
+                    # Shell References
+                    #  This is a pain in the a$$ - I hate math vs physics
+                    #  Used all of these references to generate a consensus algorithm
+                    #  https://en.wikipedia.org/wiki/Spherical_coordinate_system
+                    #   This one doesn't fully work
+                    #  https://en.wikipedia.org/wiki/Atan2
+                    #   This explains why atan2 vs atan
+                    #  https://mathworld.wolfram.com/SphericalCoordinates.html
+                    #  https://stackoverflow.com/questions/4116658/faster-numpy-cartesian-to-spherical-coordinate-conversion
+                    #   THIS IS MY FAVORITE ONE - uses physics notation
+                    #  https://math.libretexts.org/Bookshelves/Calculus/Calculus_(OpenStax)/12%3A_Vectors_in_Space/12.07%3A_Cylindrical_and_Spherical_Coordinates
+                    #   This supports the stackoverflow, just in math notation
 
+                    # Position relative to agent
+                    # logger.info("Seen Points: %s %s", self.pts[point, :], pos)
+                    v = self.pts[point, :] - pos[player, :]  # In chiefs hills frame
+
+                    # Distance relative to agent
+                    #  this is the same as the distance in the deputy frame, but
+                    #  doesn't require the transformation
+                    p_dist = np.linalg.norm(v)
+
+                    # logger.info("p_dist: %s", p_dist)
+
+                    # Check if distance is within shell
+                    #  Ignoring angles at the moment
+                    #  Less than max, more than min
+                    #   I assume we're usually too far away
+                    if (p_dist < self._VISION[role][2]) and (
+                        p_dist >= self._VISION[role][1]
+                    ):
+                        # Orient point in deputy frame
+                        # logger.info("pdf: %s %s", self.ori[player].T, v.T)
+                        if self.ORI_CONSTANT_IN == "Background":
+                            d_ori = (
+                                self.ori[player] @ cframe
+                            )  # [[h,p,y], R] [R, v] = [[h,p,y], v]
+                        else:
+                            assert self.ORI_CONSTANT_IN == "ActionFrame"
+
+                            frame = self._local_frame(
+                                local_frame=self.ACTION_FRAME,
+                                role=role,
+                                role_count=player,
+                            )
+                            d_ori = (
+                                self.ori[player] @ frame.T @ cframe
+                            )  # [[h,p,y], A] [A, R] [R, v] = [[h,p,y], v]
+
+                        pdf = d_ori @ v.T  # vector from deputy to point in ori frame.
+
+                        # theta and phi
+                        #  This is physics notation
+                        #  theta = polar/zenith angle, [0, pi], z-axis is 0
+                        #  phi = azimuth angle, (-pi, pi], x-axis is 0
+                        theta = np.arccos(pdf[2] / p_dist)
+                        phi = np.arctan2(pdf[1], pdf[0])
+
+                        # theta needs to measure from x-axis, not z-axis
+                        #  calculate the complementary angle
+                        #  theta = [pi/2, -pi/2], x-axis is 0
+                        theta = (np.pi / 2 << u.rad) - theta
+
+                        # Check if point is within cone
+                        #  Assume circular directions, so abs() it
+                        # NOTE: We could implement different ranges for theta and phi
+                        #       This would give a non-circular viewing angle
+                        if (np.abs(phi) < self._VISION[role][0]) and (
+                            np.abs(theta) < self._VISION[role][0]
+                        ):
+                            # you can see it!
+                            seen_points.append(point)
+
+            # update seen points
+            #  this will append an empty list if an agent is not active
+            just_seen.append(seen_points)
+
+        return just_seen
+
+    ###########################
+    # Reset-related Functions
+    ###########################
     def _random_sphere(self, n_points: int, radius: float) -> FloatArray:
         """ """
-        ## Generate random points on a sphere
+        # Generate random points on a sphere
         pts: FloatArray = -1 + 2 * self.np_random.normal(size=[n_points, 3])
         pts = pts / np.linalg.norm(pts, axis=1).reshape(-1, 1)
         pts = pts * radius
 
         return pts
 
+    ###########################
+    # Step-related Functions
+    ###########################
     # Physics goes here
     def _propagate_objects(self, actions):
-        # Poliastro assumes earth centered coordinates. It fixes an x,y, and z. So  
+        # Poliastro assumes earth centered coordinates. It fixes an x,y, and z. So
         # vectors in poliastro objects are in terms of of an absolute coordinate system.
-        
+
         # Translate actions into action frame and apply impulses
-        
+        self.ori_background = []
+
         for player, (role, act) in enumerate(actions.items()):
             # Compute Velocity Change
-            dv = act[:3].reshape(-1,1) * self._DELTA_V_PER_THRUST
-            if self.ACTION_FRAME == "Hills":
-                frame = self.hills_frame(self.orb[role])
-            else:
-                frame = self.ori[role]
+            dv = act[:3].reshape(-1, 1) * self._DELTA_V_PER_THRUST
+            frame = self._local_frame(
+                local_frame=self.ACTION_FRAME, role=role, role_count=player
+            )
 
             imp = Maneuver.impulse((frame @ dv).reshape(-1))
             self.orb[role] = self.orb[role].apply_maneuver(imp)
@@ -665,16 +1151,29 @@ class MultInspect(ParallelEnv):
 
             tau = self._TAU_per_THRUST * act[-3:]
 
-
             if self._USE_ANGULAR_MOMENTUM:
                 self.rot[player] += tau
                 tau = self.rot
 
             R = Rotation.from_euler("xyz", tau)
-            T = frame @ R.as_matrix() @ frame.T # x columns to frame, rotate, then back to x
 
-            self.ori[player, :, :] = T @ self.ori[player, :, :]
-        
+            # self.ori.shape = (num_deputies, [h,p,y], R)
+            if self.ORI_CONSTANT_IN == "Background":
+                T = (
+                    frame @ R.as_matrix() @ frame.T
+                )  # x columns to frame, rotate, then back to x
+                self.ori[player, :, :] = (T @ self.ori[player, :, :].T).T
+
+                self.ori_background.append(self.ori[player, :, :])
+            else:
+                assert self.ORI_CONSTANT_IN == "ActionFrame"
+                # logger.info("Incoming Rotation: %s %s", R, self.ori[player, :, :])
+                self.ori[player, :, :] = (R.as_matrix() @ self.ori[player, :, :].T).T
+
+                self.ori_background.append(self.ori[player, :, :] @ frame.T)
+
+        # logger.info("Orientation: %s", self.ori)
+
         # Rotate Chief Points:
         if self.chief_angular_momentum is not None:
             R = self.chief_angular_momentum
@@ -684,261 +1183,7 @@ class MultInspect(ParallelEnv):
         for role, orb in self.orb.items():
             self.orb[role] = orb.propagate(self._TIME_PER_STEP)
 
-        # for role in self.possible_agents:
-        #     print(role, self.orb[role].r, np.linalg.norm(self.orb[role].r - self.orb["chief"].r))
-
-    def _detect_points(self):
-        just_seen = []
-        for player, role in enumerate(self.possible_agents):
-            # Position relvative to chief
-            pos = self.orb[role].r - self.orb["chief"].r
-
-            # Detect Points:
-            #  This handles occlusion by the chief
-            #  Basically, what points are on the same side of the chief as you
-            seeable_points = np.where(
-                (self.pts * (pos - self.pts)).sum(axis=1) > 0
-            )[0]
-
-            ##########
-            # Spherical Vision
-            #########
-            # point holder
-            seen_points: list[int] = []
-
-            # loop over possible points
-            for point in seeable_points:
-                # Cone References
-                # cone: https://stackoverflow.com/questions/12826117/how-can-i-detect-if-a-point-is-inside-a-cone-or-not-in-3d-space
-                #  We're going to not use the cone, and switch to using a shell
-                #  The initial distance calc though is fine, and easy
-                #
-                # Shell References
-                #  This is a pain in the a$$ - I hate math vs physics
-                #  Used all of these references to generate a consensus algorithm
-                #  https://en.wikipedia.org/wiki/Spherical_coordinate_system
-                #   This one doesn't fully work
-                #  https://en.wikipedia.org/wiki/Atan2
-                #   This explains why atan2 vs atan
-                #  https://mathworld.wolfram.com/SphericalCoordinates.html
-                #  https://stackoverflow.com/questions/4116658/faster-numpy-cartesian-to-spherical-coordinate-conversion
-                #   THIS IS MY FAVORITE ONE - uses physics notation
-                #  https://math.libretexts.org/Bookshelves/Calculus/Calculus_(OpenStax)/12%3A_Vectors_in_Space/12.07%3A_Cylindrical_and_Spherical_Coordinates
-                #   This supports the stackoverflow, just in math notation
-
-                # Position relative to agent
-                v = self.pts[point, :] - pos
-
-                # Distance relative to agent
-                #  this is the same as the distance in the deputy frame, but
-                #  doesn't require the transformation
-                p_dist = np.linalg.norm(v)
-
-                # Check if distance is within shell
-                #  Ignoring angles at the moment
-                #  Less than max, more than min
-                #   I assume we're usually too far away
-                if (p_dist < self._VISION[role][2]) and (
-                    p_dist >= self._VISION[role][1]
-                ):
-                    # Orient point in deputy frame
-                    pdf = self.ori[player].T @ v
-
-                    # theta and phi
-                    #  This is physics notation
-                    #  theta = polar/zenith angle, [0, pi], z-axis is 0
-                    #  phi = azimuth angle, (-pi, pi], x-axis is 0
-                    theta = np.arccos(pdf[2] / p_dist)
-                    phi = np.arctan2(pdf[1], pdf[0])
-
-                    # theta needs to measure from x-axis, not z-axis
-                    #  calculate the complementary angle
-                    #  theta = [pi/2, -pi/2], x-axis is 0
-                    theta = (np.pi / 2 << u.rad) - theta
-
-                    # Check if point is within cone
-                    #  Assume circular directions, so abs() it
-                    # NOTE: We could implement different ranges for theta and phi
-                    #       This would give a non-circular viewing angle
-                    if (np.abs(phi) < self._VISION[role][0]) and (
-                        np.abs(theta) < self._VISION[role][0]
-                    ):
-                        # you can see it!
-                        seen_points.append(point)
-            
-            just_seen.append(seen_points)
-            if self.verbose:
-                print(f"{player} seeable: {seeable_points}, seen: {seen_points}")
-        
-        return just_seen
-    
-    def accel(self, t0, state, k, rate=1e-5):
-        """Constant acceleration aligned with the velocity. """
-        v_vec = state[3:]
-        #v_vec = state[:3]
-        norm_v = (v_vec * v_vec).sum() ** 0.5
-        return -rate * v_vec / norm_v
-
-    def f(self, t0, u_, k):
-        # t_0: time to evaluate at
-        # u_ = [x,y,z,vx,vy,vz] in earth coords, rather annoyingly unitless. 
-        # Assumed units (I've tested this) are km and km/s
-
-        # U.append(u_)
-        du_kep = func_twobody(t0, u_, k)
-        #ax, ay, az = self.accel(t0, u_, k, rate=1e-5)
-        ax, ay, az = self.acc
-        du_ad = np.array([0, 0, 0, ax, ay, az])
-        return du_kep + du_ad
-
-    def hills_frame(self, orb):
-        r = orb.r
-        v = orb.v
-        v_p = v - proj(v, onto=r)
-        return frame(r,v_p)[0].decompose().value
-
-    def _make_observations(self, obs_frame=None) -> dict[Role, FloatArray]:
-        """ """
-        # Return dictionary
-        # Play role will be keys, observations will be values
-        obs = dict()
-        
-        if obs_frame is None:
-            obs_frame = self.OBSERVATION_FRAME
-
-        # Setup point mask
-        #  hide points that have been observed
-        observedPoints = list(set(range(self.num_points)) - self.unobserved_points)
-        pt_mask = np.ones(self.num_points)
-        pt_mask[observedPoints] = 0
-
-        poss = np.stack([self.orb[role].r for role in self.possible_agents]).T.to(self._OU_DIS).value
-        vels = np.stack([self.orb[role].v for role in self.possible_agents]).T.to(self._OU_VEL).value
-        pos_c = self.orb["chief"].r.reshape(-1,1).to(self._OU_DIS).value
-        vel_c = self.orb["chief"].v.reshape(-1,1).to(self._OU_VEL).value
-        pos_p = self.pts.T.to(self._OU_DIS).value
-
-        # loop over all deputies
-        for i, role in enumerate(self.possible_agents):
-            # Recall: Moving from absolute coords into a frame is left multiplacation
-            # by the transpose
-
-            # Velocities
-            # Velocities of all deputies in my frame
-            if obs_frame == "Hills":
-                frame = self.hills_frame(self.orb[role])
-            else:
-                frame = self.ori[i] 
-
-            vel_in_frame = frame.T @ (vels - vels[:,[i]])
-            chief_vel_in_frame = frame.T @ (vel_c - vels[:,[i]])
-
-            #  Relative velocities of all other deputies in my frame
-            rel_vel = np.delete(arr=vel_in_frame, obj=i, axis=1)
-
-            # Relative positions of all other deputies in my frame
-            rel_pos = (
-                frame.T @ np.delete(arr=poss - poss[:,[i]], obj=i, axis=1)
-            )
-
-            dchief = pos_c - poss[:,[i]]
-
-            # Relative positions of all points in my frame
-            rel_pts = frame.T @ (pos_p + dchief)
-
-            # Relative position of chief in my
-            rel_chief = frame.T @ dchief
-
-            # Put the observation space together
-            tmp = np.concatenate(
-                [   
-                    rel_chief, 
-                    chief_vel_in_frame, 
-                    rel_vel,
-                    rel_pos, 
-                    rel_pts,
-                ], axis=1
-            )
-
-            # Store observation space under appropriate role
-            obs[Role(f"player_{i}")] = np.concatenate([tmp.reshape(-1), pt_mask])
-
-        return obs
-
-    def _make_waypoint_observations(self, obs_frame=None) -> dict[Role, FloatArray]:
-        """ """
-        # Return dictionary
-        # Play role will be keys, observations will be values
-        obs = dict()
-        
-        if obs_frame is None:
-            obs_frame = self.OBSERVATION_FRAME
-
-        # Setup point mask
-        #  hide points that have been observed
-        observedPoints = list(set(range(self.num_points)) - self.unobserved_points)
-        pt_mask = np.ones(self.num_points)
-        pt_mask[observedPoints] = 0
-
-        poss = np.stack([self.orb[role].r for role in self.possible_agents]).T.to(self._OU_DIS).value
-        vels = np.stack([self.orb[role].v for role in self.possible_agents]).T.to(self._OU_VEL).value
-        pos_c = self.orb["chief"].r.reshape(-1,1).to(self._OU_DIS).value
-        vel_c = self.orb["chief"].v.reshape(-1,1).to(self._OU_VEL).value
-        pos_p = self.pts.T.to(self._OU_DIS).value
-        
-
-        # loop over all deputies
-        for i, role in enumerate(self.possible_agents):
-            # Recall: Moving from absolute coords into a frame is left multiplacation
-            # by the transpose
-
-            # Velocities
-            # Velocities of all deputies in my frame
-            if obs_frame == "Hills":
-                frame = self.hills_frame(self.orb[role])
-            else:
-                frame = self.ori[i] 
-
-            vel_in_frame = frame.T @ (vels - vels[:,[i]])
-            chief_vel_in_frame = frame.T @ (vel_c - vels[:,[i]])
-
-            #  Relative velocities of all other deputies in my frame
-            rel_vel = np.delete(arr=vel_in_frame, obj=i, axis=1)
-
-            # Relative positions of all other deputies in my frame
-            rel_pos = (
-                frame.T @ np.delete(arr=poss - poss[:,[i]], obj=i, axis=1)
-            )
-
-            dchief = pos_c - poss[:,[i]]
-
-            # print("dchief", dchief)
-            # print(self.pts.T.to(self._OU_DIS).value + dchief)
-            # Relative positions of all points in my frame
-            rel_pts = frame.T @ (pos_p[:,[i]] + dchief)
-
-            # Relative position of chief in my
-            rel_chief = frame.T @ dchief
-
-            # Put the observation space together
-            tmp = np.concatenate(
-                [   
-                    rel_chief, 
-                    chief_vel_in_frame, 
-                    rel_vel, 
-                    rel_pos, 
-                    rel_pts,
-                ], axis=1
-            )
-
-            # Store observation space under appropriate role
-            obs[Role(f"player_{i}")] = tmp.reshape(-1)
-
-        return obs
-
-
-
-    ## Visualizations
+    # Visualizations
     def render(
         self,
         render_mode: str = "rgb_array",
@@ -955,18 +1200,44 @@ class MultInspect(ParallelEnv):
             return None
 
         # init figure and canvas
-        fig = plt.figure(figsize=[20,5])
+        fig = plt.figure(figsize=[15, 10])
         canvas = FigureCanvas(fig)
 
-        poss = np.stack([self.orb[role].r-self.orb["chief"].r for role in self.possible_agents]).T.to(self._OU_DIS).value
-        vels = np.stack([self.orb[role].v-self.orb["chief"].v for role in self.possible_agents]).T.to(self._OU_VEL).value
+        poss = (
+            np.stack(
+                [
+                    self.orb[role].r - self.orb["chief"].r
+                    for role in self.possible_agents
+                ]
+            )
+            .T.to(self._OU_DIS)
+            .value
+        )
+        vels = (
+            np.stack(
+                [
+                    self.orb[role].v - self.orb["chief"].v
+                    for role in self.possible_agents
+                ]
+            )
+            .T.to(self._OU_VEL)
+            .value
+        )
 
+        cframe = hills_frame(self.orb["chief"])
+
+        chief_rel_poss = (cframe.T @ poss).T
         ##########
         # Title
         ##########
         # plot scores as title
+        # print(chief_rel_poss.shape)
+
         score_title = "    ".join(
-            [f"Player {i}: {self.cum_rewards[i]:.3f}" for i in range(self.num_deputies)]
+            [
+                f"Player {i}: {self.cum_rewards[i]:.3f} {np.linalg.norm(chief_rel_poss[i] - self.pts[i].to(self._OU_DIS).value):.3f}"  # noqa: E501
+                for i in range(self.num_deputies)
+            ]
         )
         fig.suptitle(
             t=score_title, horizontalalignment="center", verticalalignment="center"
@@ -977,7 +1248,7 @@ class MultInspect(ParallelEnv):
         ##########
         # Plot just the chief, or the chief and one agent-centric view?
         if vision is not None:
-            ax = fig.add_subplot(141, projection="3d")
+            ax = fig.add_subplot(231, projection="3d")
         else:
             ax = plt.axes(projection="3d")
 
@@ -1004,15 +1275,14 @@ class MultInspect(ParallelEnv):
 
         # Deputy body
         for i in range(self.num_deputies):
-            x, y, z = poss[:,[i]]
+            x, y, z = poss[:, [i]]
             ax.plot3D(x, y, z, marker="^", linewidth=0, label=f"player_{i}")
 
         # Velocity
         # Plot line collection: LC = np.array([N,S,D]), num lines, num of points
         # per line, dim of space, so LC[2,0,:] is point 0 on line 2
 
-
-        TPS = (self.TIME_PER_STEP * self._OU_VEL/self._OU_DIS).decompose().value
+        TPS = (self._TIME_PER_STEP * self._OU_VEL / self._OU_DIS).decompose().value
 
         segs = np.stack([poss.T, poss.T + TPS * vels.T], axis=1)
         line_segments = Line3DCollection(
@@ -1041,7 +1311,10 @@ class MultInspect(ParallelEnv):
             # get positions of points
             unobserved_pos = self.pts[list(self.unobserved_points), :]
             # calc vector for point size
-            s = np.linalg.norm(unobserved_pos.to(self._OU_DIS).value + view_vec, axis=1) - 40
+            s = (
+                np.linalg.norm(unobserved_pos.to(self._OU_DIS).value + view_vec, axis=1)
+                - 40
+            )
             # get in euclidean space
             x, y, z = unobserved_pos.T
             # plot
@@ -1057,7 +1330,10 @@ class MultInspect(ParallelEnv):
             # get positions of points
             observed_pos = self.pts[list(observed_pts), :]
             # calc vector for point size
-            s = np.linalg.norm(observed_pos.to(self._OU_DIS).value + view_vec, axis=1) - 40
+            s = (
+                np.linalg.norm(observed_pos.to(self._OU_DIS).value + view_vec, axis=1)
+                - 40
+            )
             # get in euclidean space
             x, y, z = observed_pos.T
             # plot
@@ -1090,32 +1366,37 @@ class MultInspect(ParallelEnv):
 
         widths = []
         centers = []
-        for i, s in enumerate(['x', 'y', 'z']):
+        for i, s in enumerate(["x", "y", "z"]):
             lim = getattr(ax, f"get_{s}lim")()
             lim = [
-                min(max(mins[i], -300), -self._CHIEF_PERIMETER.to(self._OU_DIS).value+10), 
-                max(min(maxes[i], 300), self._CHIEF_PERIMETER.to(self._OU_DIS).value+10)
+                min(
+                    max(mins[i], -300),
+                    -self._CHIEF_PERIMETER.to(self._OU_DIS).value + 10,
+                ),
+                max(
+                    min(maxes[i], 300),
+                    self._CHIEF_PERIMETER.to(self._OU_DIS).value + 10,
+                ),
             ]
-            widths.append(lim[1]-lim[0])
-            centers.append((lim[1]+lim[0])/2)
-        
-        w = max(widths)/2
-        for i, s in enumerate(['x', 'y', 'z']):
-            getattr(ax, f"set_{s}lim")([centers[i] - w, centers[i] + w])
+            widths.append(lim[1] - lim[0])
+            centers.append((lim[1] + lim[0]) / 2)
 
+        w = max(widths) / 2
+        for i, s in enumerate(["x", "y", "z"]):
+            getattr(ax, f"set_{s}lim")([centers[i] - w, centers[i] + w])
 
         ##########
         # Render Agent View
         ##########
         if vision is not None:
-            ax2 = fig.add_subplot(142, projection="3d")
+            ax2 = fig.add_subplot(232, projection="3d")
             all_obs = self._make_observations(obs_frame="Orientation")
             role = cast(Role, f"player_{vision}")
             obs = all_obs[role]
 
             mask = obs[-self.num_points :]
-            obs = obs[:-self.num_points].reshape(3,-1)
-            x = obs[:,-self.num_points:]
+            obs = obs[: -self.num_points].reshape(3, -1)
+            x = obs[:, -self.num_points :]
 
             # Orientation
             z = np.zeros(2)
@@ -1123,8 +1404,6 @@ class MultInspect(ParallelEnv):
             ax2.plot(o, z, z, color="r")
             ax2.plot(z, o, z, color="g")
             ax2.plot(z, z, o, color="b")
-
-
 
             seen = x[:, mask == 0]
             unseen = x[:, mask == 1]
@@ -1134,15 +1413,14 @@ class MultInspect(ParallelEnv):
             ax2.set_ylim([-100, 200])
             ax2.set_zlim([-100, 200])
 
-
         # Render Earth Frame
 
-        ax3 = fig.add_subplot(143)
-        
+        ax3 = fig.add_subplot(233)
+
         N = len(self.orb.keys())
 
         poss = np.stack([orb.r for orb in self.orb.values()]).to(self._OU_DIS).value
-        
+
         if "pos_hist" not in self.render_data.keys():
             self.render_data["pos_hist"] = []
 
@@ -1152,25 +1430,23 @@ class MultInspect(ParallelEnv):
         for i in range(N):
             ax3.plot(pos_hist[:, i, 0], pos_hist[:, i, 1])
 
-
         ax3.set_title("Earth Centered Frame")
 
-
         # Render Hill Frame
-
-        ax4 = fig.add_subplot(144)
+        ax4 = fig.add_subplot(234)
 
         if "frames" not in self.render_data.keys():
             self.render_data["frames"] = []
-    
+
         if "chief_rel_poss" not in self.render_data.keys():
             self.render_data["chief_rel_poss"] = []
 
         c_idx = list(self.orb.keys()).index("chief")
-        frame = self.hills_frame(self.orb["chief"])
+        frame = hills_frame(self.orb["chief"])
 
         chief_rel_poss = (frame.T @ poss.T).T
-        chief_rel_poss = chief_rel_poss - chief_rel_poss[c_idx,:]
+        # print(chief_rel_poss[c_idx,:])
+        chief_rel_poss = chief_rel_poss - chief_rel_poss[c_idx, :]
 
         self.render_data["chief_rel_poss"].append(chief_rel_poss)
         self.render_data["frames"].append(frame)
@@ -1179,18 +1455,95 @@ class MultInspect(ParallelEnv):
 
         for i in range(N):
             ax4.plot(hills[:, i, 1], hills[:, i, 0])
-        
-        chief = plt.Circle((0, 0), self._CHIEF_PERIMETER.to(self._OU_DIS).value, color='k', fill=False)
+
+        ax4.scatter(self.pts[:, 1], self.pts[:, 0])
+
+        chief = plt.Circle(
+            (0, 0), self._CHIEF_PERIMETER.to(self._OU_DIS).value, color="k", fill=False
+        )
         ax4.add_patch(chief)
         ax4.set_title("Chief Centered Hill Frame")
+        ax4.set_xlabel("Mometum Direction")
+        ax4.set_ylabel("Altitude")
+
+        xlim = ax4.get_xlim()
+        ylim = ax4.get_ylim()
+
+        if xlim[1] - xlim[0] > ylim[1] - ylim[0]:
+            dx = xlim[1] - xlim[0]
+            ylim = [np.mean(ylim) - dx / 2, np.mean(ylim) + dx / 2]
+        else:
+            dy = ylim[1] - ylim[0]
+            xlim = [np.mean(xlim) - dy / 2, np.mean(xlim) + dy / 2]
+
+        ax4.set_xlim(xlim)
+        ax4.set_ylim(xlim)
+
+        ax5 = fig.add_subplot(235)
+
+        for i in range(N):
+            ax5.plot(hills[:, i, 2], hills[:, i, 0])
+
+        ax5.scatter(self.pts[:, 2], self.pts[:, 0])
+
+        chief = plt.Circle(
+            (0, 0), self._CHIEF_PERIMETER.to(self._OU_DIS).value, color="k", fill=False
+        )
+        ax5.add_patch(chief)
+        ax5.set_title("Chief Centered Hill Frame (Chase)")
+        ax5.set_xlabel("Off Axis")
+        ax5.set_ylabel("Altitude")
+
+        xlim = ax5.get_xlim()
+        ylim = ax5.get_ylim()
+
+        if xlim[1] - xlim[0] > ylim[1] - ylim[0]:
+            dx = xlim[1] - xlim[0]
+            ylim = [np.mean(ylim) - dx / 2, np.mean(ylim) + dx / 2]
+        else:
+            dy = ylim[1] - ylim[0]
+            xlim = [np.mean(xlim) - dy / 2, np.mean(xlim) + dy / 2]
+
+        ax5.set_xlim(xlim)
+        ax5.set_ylim(xlim)
+
+        ax6 = fig.add_subplot(236)
+
+        for i in range(N):
+            ax6.plot(hills[:, i, 1], hills[:, i, 2])
+
+        ax6.scatter(self.pts[:, 1], self.pts[:, 2])
+
+        chief = plt.Circle(
+            (0, 0), self._CHIEF_PERIMETER.to(self._OU_DIS).value, color="k", fill=False
+        )
+        ax6.add_patch(chief)
+        ax6.set_title("Chief Centered Hill Frame (Earth Facing)")
+        ax6.set_xlabel("Mometum Direction")
+        ax6.set_ylabel("Off Axis")
+
+        xlim = ax6.get_xlim()
+        ylim = ax6.get_ylim()
+
+        if xlim[1] - xlim[0] > ylim[1] - ylim[0]:
+            dx = xlim[1] - xlim[0]
+            ylim = [np.mean(ylim) - dx / 2, np.mean(ylim) + dx / 2]
+        else:
+            dy = ylim[1] - ylim[0]
+            xlim = [np.mean(xlim) - dy / 2, np.mean(xlim) + dy / 2]
+
+        ax6.set_xlim(xlim)
+        ax6.set_ylim(xlim)
 
         # Draw
-
         if render_mode == "rgb_array":
             canvas.draw()
 
-            data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-            data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            # return figure as array of data
+            #  rgba returns alpha channel - drop it
+            data = np.array(fig.canvas.buffer_rgba(), dtype=np.uint8)[:, :, :3]
+
+            # close plot
             plt.close(fig)
 
             return data
@@ -1198,36 +1551,82 @@ class MultInspect(ParallelEnv):
         plt.close(fig)
         return None
 
-    def close(self) -> None:
-        pass
-
-    def state(self) -> None:
-        raise NotImplementedError("State Not Implemented.")
-
 
 if __name__ == "__main__":
-    from tqdm import tqdm
     from PIL import Image
+    from tqdm import tqdm
 
     env = MultInspect(
-        num_deputies=4, 
-        _SIM_OUTER_PARAMETER=100<<u.m,
-        _CHIEF_PERIMETER = 100 << u.m
+        num_deputies=4, _SIM_OUTER_PARAMETER=300 << u.m, _CHIEF_PERIMETER=50 << u.m
     )
     env.seed(0)
     env.reset()
-    
+
+    # env.render()
+
     frames = []
-    # for i in tqdm(range(env.max_episode_steps)):
-    for i in tqdm(range(10)):
-        act = {role: np.array([0,0,0,0,0,0]) for role in env.possible_agents}
-        env.step(act)
+    for i in tqdm(range(200)):
+        if i <1:
+            act = {role: np.array([10,0,0,0,0,0]) for role in env.possible_agents}
+        else:
+            act = {role: np.array([0,0,0,0,0,0]) for role in env.possible_agents}
+    
+        # act = {role: np.array([0,0,0,0,0,0]) for role in env.possible_agents}
+        # act = {role: 0.5 - np.random.random(6) for role in env.possible_agents}
+        (
+            obs,
+            _,
+            _,
+            _,
+            _,
+        ) = env.step(act)
+        # print(obs["player_0"][:3])
         frames.append(env.render())
-        
-    # Image.fromarray(frames[0])
+
+    Image.fromarray(frames[0])
 
     imgs = [Image.fromarray(frame) for frame in frames]
     # duration is the number of milliseconds between frames; this is 40 frames per second
     model_dir = ""
-    imgs[0].save(model_dir + f"_eval_run_{i}.gif", save_all=True, append_images=imgs[1:], duration=500, loop=0)
+    imgs[0].save(
+        model_dir + f"_eval_run_{i}.gif",
+        save_all=True,
+        append_images=imgs[1:],
+        duration=500,
+        loop=0,
+    )
+
+
+# %%
+# from PIL import Image
+# from IPython.display import display
+
+# # %%
+# display(Image.fromarray(env.render()))
+# print("Dist:", np.linalg.norm(env.pts - env.pos))
+# env.orb["player_0"].r - env.orb["chief"].r
+
+# env.step({"player_0":np.array([0,0,0])})
+
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([1,0,0])})
+# # %%
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([0,0,0])})
+# display(Image.fromarray(env.render()))
+# # %%
+# env.reset()
+# print(env.pts)
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([1,0,0])})
+# env.render()
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([0,0,0])})
+# env.render()
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([0,0,0])})
+# env.render()
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([0,0,0])})
+# env.render()
+# obs, rew, term, trunc, info = env.step({"player_0":np.array([0,0,-1])})
+# env.render()
+# for _ in range(20):
+#     obs, rew, term, trunc, info = env.step({"player_0":np.array([0,0,0])})
+#     env.render()
+# display(Image.fromarray(env.render()))
 # %%

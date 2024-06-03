@@ -44,14 +44,17 @@ class COACHIntegration:
     def __init__(self, 
         env_creator, 
         COACHEnvClass,
+        COACH_PettingZoo,
         parameters, 
-        agents_module=agents_module
+        agents_module = agents_module,
+        render_gif = False,
     ) -> None:
-        self.agents_module=agents_module
+        self.agents_module = agents_module
         self.env_creator = env_creator
         self.COACHEnvClass = COACHEnvClass
+        self.COACH_PettingZoo = COACH_PettingZoo
         self.parameters = parameters
-        self.render_gif = False
+        self.render_gif = render_gif
         
         self.library = dict()
         self._id_to_interface = dict()
@@ -189,10 +192,10 @@ class COACHIntegration:
             if_Class = self.agents_module.__dict__.get(if_params["interface_class"])
             logger.debug("Current Class: %s", if_Class)
             logger.debug("Current Params: %s", if_params)
-            # if_Class = self.coach_env.__class__.agent_selection.Interfaces[if_params["interface_class"]]
             
             # Get a reference interface, this is make sure that any model class instiated has the correct interface
             role = if_params.get("roles", self.roles)[0] # Get one applicable role
+
             if_reference = if_Class(role, self.coach_env.env, **if_params.get("iterface_parameters", dict()))
             logger.debug("Current Class: %s", if_reference)
 
@@ -232,8 +235,10 @@ class COACHIntegration:
 
             dr_class = directors_module.__dict__.get(dr_params["class_name"])
             self.directors[dr_name] = dr_class(
+                COACH_PettingZoo = self.COACH_PettingZoo,
                 env_creator = self.env_creator,
                 COACHEnvClass = self.COACHEnvClass, 
+                AgentsModule=self.agents_module,
                 params = tmp_params, 
                 model_path = dr_params["path"]
             )

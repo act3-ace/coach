@@ -23,16 +23,16 @@ interfaces:
         class_name: SB_PPOPoliciesActor
         params:
           policy_paths: 
-            dense: dense/waterworld_v4_20240213-185458.zip
-            explore: explore/waterworld_v4_20240213-185504.zip
+            dense: dense\waterworld_v4_20240602-202009.zip
+            explore: explore\waterworld_v4_20240602-202017.zip
           max_action_len: 10
       
       Dense_v_Sparse_v2:
         class_name: SB_PPOPoliciesActor
         params: 
           policy_paths: 
-            dense: dense/waterworld_v4_20240213-185458.zip
-            explore: explore/waterworld_v4_20240213-185504.zip
+            dense: dense\waterworld_v4_20240602-202009.zip
+            explore: explore\waterworld_v4_20240602-202017.zip
           max_action_len: 10
 
   Tall_v_Short:
@@ -46,15 +46,15 @@ interfaces:
         class_name: SB_PPOPoliciesActor
         params:
           policy_paths: 
-            dense: dense/waterworld_v4_20240213-185458.zip
-            explore: explore/waterworld_v4_20240213-185504.zip
+            dense: dense\waterworld_v4_20240602-202009.zip
+            explore: explore\waterworld_v4_20240602-202017.zip
           max_action_len: 10
     roles: [pursuer_0, pursuer_1, pursuer_2] # If this is not supplied, assumed all roles
 
 directors:
   PPO_Director:
     class_name: SB3_PPO_Director
-    path: director/waterworld_v4_20240213-190312.zip
+    path: director\waterworld_v4_20240602-202818.zip
     roles:
       pursuer_0:
         classes: [Dense_v_Sparse_v1, Dense_v_Sparse_v2]

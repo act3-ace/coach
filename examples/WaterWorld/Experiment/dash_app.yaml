@@ -1,0 +1,20 @@
+interfaces:
+  Waypoint: # Name of Interface
+    interface_class: WaypointInterface
+
+    roles: [pursuer_0, pursuer_1] # If this is not supplied, assumed all roles
+    models: 
+      Waypoint:
+        class_name: SB_PPOWaypointActor
+        params:
+          policy_path: test/waterworld_v4_20240521-153057/model.zip
+
+directors:
+  PPO_Director:
+    class_name: SB3_PPO_Director
+    path: director/waterworld_v4_20240530-205256.zip
+    roles:
+      pursuer_0:
+        classes: [Waypoint]
+      pursuer_1:
+        classes: [Waypoint]

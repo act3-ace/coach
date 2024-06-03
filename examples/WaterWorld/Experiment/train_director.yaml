@@ -1,0 +1,23 @@
+env_params:
+  n_pursuers: 2
+  max_cycles: 50
+  
+COACH_params:
+  stochastic: true
+  # FIXED_STEPS_PER_COM:
+  #   checkin_frequency: 30
+  #   allow_agent_break: False
+  ACTION_PADDING: 10
+  MIN_NEXT_ACTION_TIME: 5
+  MAX_NEXT_ACTION_TIME: 30
+  seed: 453413
+  steps_per_frame: 1
+  Agents:
+    pursuer_0:
+      class_name: "SB_PPOWaypointActor"
+      params:
+        policy_path:
+    pursuer_1:
+      class_name: "SB_PPOWaypointActor"
+      params:
+        policy_path:

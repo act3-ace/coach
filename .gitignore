@@ -3,3 +3,5 @@ examples/Multipolicy/director/*
 examples/Multipolicy/explore/*
 examples/Multipolicy/tensorboard_log
 */tensorboard_log
+__pycache__/*
+*/__pycache__/*

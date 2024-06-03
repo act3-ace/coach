@@ -11,10 +11,11 @@ Pillow==10.2.0
 plotly==5.18.0
 poliastro==0.17.0
 PyYAML==6.0.1
-PyYAML==6.0.1
 scipy==1.12.0
 stable_baselines3==2.2.1
 SuperSuit==3.9.2
-tensorflow==2.15.0.post1
+tensorflow>=2.15.0
 torch==2.2.0
 tqdm==4.66.2
+pygame==2.5.2
+pymunk==6.6.0

@@ -20,6 +20,7 @@ import gymnasium as gym
 from typing import Any
 import numpy as np
 import argparse
+from gymnasium.utils import EzPickle
 
 from coach import (
     SeededParameterGenerator,
@@ -49,12 +50,21 @@ def get_env_class(args: argparse.Namespace):
     """
     return COACH_PettingZoo
 
+def env(**kwargs):
+    return COACH_PettingZoo(**kwargs)
 
-class COACH_PettingZoo(gym.Wrapper,ParallelEnv):
-    def __init__(self, env_creator, COACHEnvClass):
+def parallel_env(**kwargs):
+    return COACH_PettingZoo(**kwargs)
+
+class COACH_PettingZoo(gym.Wrapper, ParallelEnv):
+    def __init__(self, env_creator, COACHEnvClass, AgentsModule, SBCompatabilityMode=True):
+        # EzPickle.__init__(self)
+        
         self.env_creator = env_creator
         self.COACHEnvClass = COACHEnvClass
+        self.AgentsModule = AgentsModule
         self.fake_render_mode = "rgb_array"
+        self.SBCompatabilityMode = SBCompatabilityMode
 
     def _setup(self, params):
         self.current_params = params
@@ -85,7 +95,7 @@ class COACH_PettingZoo(gym.Wrapper,ParallelEnv):
         if "Agents" in self.COACH_params.keys():
             for role, agent in self.COACH_params["Agents"].items():
                 logger.info(f"############# {role} {agent}")
-                agent_class = self.COACHEnvClass.agent_selection.Agents[agent["class_name"]]
+                agent_class = self.AgentsModule.Agents[agent["class_name"]]
                 agent_dict[role] = agent_class(role, **agent.get("params", dict()))
 
         # Create COA Env
@@ -97,6 +107,7 @@ class COACH_PettingZoo(gym.Wrapper,ParallelEnv):
             comm_schedule=self.comm_schedule,
             seed=COACH_params["seed"],
         )
+
 
         self.coa_env.augment(self.parameter_generator)
         self.coa_env.reset()
@@ -171,7 +182,28 @@ class COACH_PettingZoo(gym.Wrapper,ParallelEnv):
     def action_space(self, role):
         return self.action_spaces[role]
 
+    def __getstate__(self):
+        state = {
+            "env_creator": self.env_creator,
+            "COACHEnvClass": self.COACHEnvClass,
+            "AgentsModule": self.AgentsModule,
+            "fake_render_mode": self.fake_render_mode,
+            "SBCompatabilityMode": self.SBCompatabilityMode,
+            "current_params": self.current_params,
+        }
+
+        return state
+
+    def __setstate__(self, newstate):
+        for k,v in newstate.items():
+            self.__dict__[k] = v
+        
+        self.augment(self.current_params)
+
     def reset(self, seed=0, options=None):
+        # if self.SBCompatabilityMode:
+        #     self.augment({"COACH_params":dict()})
+
         self.coa_env.reset()
         self.steps = 0
         self.cummulative_rew = np.zeros(len(self.possible_agents))
@@ -222,7 +254,7 @@ class COACH_PettingZoo(gym.Wrapper,ParallelEnv):
 
         return (
             {"director": self._process_observations(last_returns)},
-            {"director": step_reward},  ## Reward
+            {"director": step_reward.reshape(-1)[0]},  ## Reward
             {"director": term},  ## Term
             {"director": trunc},  ## Trunc
             {"director": {}},  ## Info
@@ -256,7 +288,7 @@ class COACH_PettingZoo(gym.Wrapper,ParallelEnv):
         # as there may be a ton of redudenent information in the combined observation
         # space
         obs = np.concatenate([last_returns[0][role].reshape(-1) for role in self.players])
-        return obs
+        return obs.reshape(-1)
 
 ############################################################
 # Wrapper Functions

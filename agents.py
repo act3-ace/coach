@@ -97,6 +97,13 @@ class ActionBox(Box):
 
         return True
 
+    def truncate_to_box(self, data):
+        # print(data.shape, self.low.shape)
+        data = np.max(np.stack([data.reshape(self.shape), self.low]), axis=0)
+        data = np.min(np.stack([data, self.high]), axis=0)
+        return data
+
+
 
 class TrivialInterface:
     def __init__(self, role, env):
