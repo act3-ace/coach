@@ -7,12 +7,12 @@ interfaces:
       Waypoint:
         class_name: SB_PPOWaypointActor
         params:
-          policy_path: test/waterworld_v4_20240521-153057/model.zip
+          policy_path: bkupagent/waterworld_v4_20240521-153057/model.zip
 
 directors:
   PPO_Director:
     class_name: SB3_PPO_Director
-    path: director/waterworld_v4_20240530-205256.zip
+    path: bkupdirector/waterworld_v4_20240530-205256.zip
     roles:
       pursuer_0:
         classes: [Waypoint]
