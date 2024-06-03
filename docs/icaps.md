@@ -11,14 +11,11 @@ COACH provides tools for researchers to bridge this gap: given any simulation co
 
 In this tutorial, we will go over the transformation of a traditional RL problem into a director/semi-autonomous agent style planning problem on an environment chosen from the PettingZoo repository. 
 
-## Section 1:
-Training multiple agent policies using Stable Baselines3. (Link to Colab)
+### Tutorial Links:
 
-## Section 2:
-Training a director agent to dynamically assign policies from a policy library to agents in a simulation. (Link to Colab)
-
-## Section 3:
-Creating a Dash interface to view, edit and compare generated policies. (Link to Colab)
+* [Google Colab](https://colab.research.google.com/drive/1JQ4-zNoQidWD49O3bNBZ8eQYoWSf6-XE?usp=sharing)
+* [IPython File](https://github.com/act3-ace/coach/blob/ICAPSDemo/docs/Coach_Tutorial_1_ipython.ipynb)
+* [HTML Version - Download Required](https://github.com/act3-ace/coach/blob/ICAPSDemo/docs/Coach_Tutorial_1_ipython.html)
 
 
 *This tutorial will be presented by Dr. Nate Bade. Dr. Bade is an award-winning educator and former teaching professor and program director of the MS in Applied Mathematics (MSAM) program at Northeastern University. He specialized in project based education and designed the MSAM’s graduate machine learning program. A sample curriculum is available at [on github](https://tipthederiver.github.io/Math-7243-2020/index.html). He is currently a Senior Data Scientist at Mobius Logic and works in coordination with ACT3 on hierarchical methods in multi-agent reinforcement learning and automated planning.*
