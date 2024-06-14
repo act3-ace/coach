@@ -17,5 +17,7 @@ In this tutorial, we will go over the transformation of a traditional RL problem
 * [IPython File](https://github.com/act3-ace/coach/blob/ICAPSDemo/docs/Coach_Tutorial_1_ipython.ipynb)
 * [HTML Version - Download Required](https://github.com/act3-ace/coach/blob/ICAPSDemo/docs/Coach_Tutorial_1_ipython.html)
 
+Video from ICAPS - [https://www.youtube.com/playlist?list=PLj-ZdQ5rfSEpKaxfUJ3CaJV8NBi-cdYwI]
+
 
 *This tutorial will be presented by Dr. Nate Bade. Dr. Bade is an award-winning educator and former teaching professor and program director of the MS in Applied Mathematics (MSAM) program at Northeastern University. He specialized in project based education and designed the MSAM’s graduate machine learning program. A sample curriculum is available at [on github](https://tipthederiver.github.io/Math-7243-2020/index.html). He is currently a Senior Data Scientist at Mobius Logic and works in coordination with ACT3 on hierarchical methods in multi-agent reinforcement learning and automated planning.*
